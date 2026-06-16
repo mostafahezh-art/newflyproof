@@ -489,39 +489,6 @@ const server = http.createServer(function(req, res) {
     return;
   }
 
-
-    res.setHeader('Content-Type', 'application/json');
-    var body = '';
-    req.on('data', function(chunk) { body += chunk; });
-    req.on('end', function() {
-      try {
-        var data = JSON.parse(body);
-        if (!data.token) { res.end(JSON.stringify({ success: false, error: 'No token' })); return; }
-        stripeCharge(data.token, 500, function(err, charge) {
-          if (err || charge.error) {
-            res.end(JSON.stringify({ success: false, error: err ? err.message : charge.error.message }));
-          } else {
-            // Save pending order to DB
-            pool.query(
-              'INSERT INTO orders (booking_ref, passenger_name, email, flight_route, flight_date, airline, flight_num, dep_time, arr_time, charge_id, amount, currency) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
-              [
-                data.bookingRef || '', data.name || '', data.email || '',
-                data.flightRoute || '', data.flightDate || '', data.airline || '',
-                data.flightNum || '', data.depTime || '', data.arrTime || '',
-                charge.id, 500, 'usd'
-              ]
-            ).catch(function(e){ console.error('DB insert error:', e.message); });
-            res.end(JSON.stringify({ success: true, chargeId: charge.id }));
-          }
-        });
-      } catch(e) {
-        res.end(JSON.stringify({ success: false, error: 'Invalid request' }));
-      }
-    });
-    return;
-  }
-
-
   // ── Admin Resend Email ────────────────────────────────────────────
   if (url.pathname === '/admin/resend' && req.method === 'POST') {
     res.setHeader('Content-Type', 'application/json');
