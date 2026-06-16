@@ -43,8 +43,24 @@ async function initDB() {
       user_agent VARCHAR(500),
       country VARCHAR(100),
       ip VARCHAR(50),
+      device VARCHAR(20),
+      duration_seconds INTEGER DEFAULT 0,
       created_at TIMESTAMP DEFAULT NOW(),
       last_seen TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`ALTER TABLE visitors ADD COLUMN IF NOT EXISTS device VARCHAR(20)`);
+  await pool.query(`ALTER TABLE visitors ADD COLUMN IF NOT EXISTS duration_seconds INTEGER DEFAULT 0`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS errors (
+      id SERIAL PRIMARY KEY,
+      session_id VARCHAR(100),
+      message VARCHAR(500),
+      source VARCHAR(200),
+      step VARCHAR(100),
+      ip VARCHAR(50),
+      country VARCHAR(100),
+      created_at TIMESTAMP DEFAULT NOW()
     )
   `);
   console.log('Database ready');
@@ -202,7 +218,7 @@ function getIP(req) {
 }
 
 // ── Admin Dashboard HTML ──────────────────────────────────────────
-function adminHTML(orders, stats, visitors) {
+function adminHTML(orders, stats, visitors, errors) {
   var rows = orders.map(function(o) {
     return '<tr>'
       + '<td>' + (o.booking_ref || '') + '</td>'
@@ -223,13 +239,33 @@ function adminHTML(orders, stats, visitors) {
     var ago = Math.floor((Date.now() - new Date(v.last_seen).getTime()) / 1000);
     var agoStr = ago < 60 ? ago + 's ago' : Math.floor(ago/60) + 'm ago';
     var isOnline = ago < 120;
+    var dur = v.duration_seconds || 0;
+    var durStr = dur < 60 ? dur + 's' : Math.floor(dur/60) + 'm ' + (dur%60) + 's';
+    var deviceIcon = v.device === 'Mobile' ? '📱' : v.device === 'Tablet' ? '📟' : '🖥';
+    var ref = (v.referrer || 'Direct');
+    if (ref.includes('google')) ref = '🔍 Google';
+    else if (ref.includes('facebook')) ref = '👤 Facebook';
+    else if (ref === 'Direct' || ref === '') ref = '🔗 Direct';
+    else ref = '🌐 ' + ref.substring(0,30);
     return '<tr>'
       + '<td>' + (v.session_id || '').substring(0,8) + '...</td>'
       + '<td>' + (v.page || '/') + '</td>'
-      + '<td>' + (v.ip || '') + '</td>'
-      + '<td>' + (v.referrer || 'Direct') + '</td>'
+      + '<td>' + deviceIcon + ' ' + (v.device||'Desktop') + '</td>'
+      + '<td>' + (v.country || 'Unknown') + '</td>'
+      + '<td>' + ref + '</td>'
+      + '<td>' + durStr + '</td>'
       + '<td>' + agoStr + '</td>'
       + '<td>' + (isOnline ? '<span style="color:#16a34a;font-weight:700">● Online</span>' : '<span style="color:#94a3b8">Offline</span>') + '</td>'
+      + '</tr>';
+  }).join('');
+
+  var errorRows = (errors||[]).map(function(e) {
+    return '<tr>'
+      + '<td style="font-size:12px;color:#64748b">' + new Date(e.created_at).toLocaleString() + '</td>'
+      + '<td><span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">' + (e.step||'unknown') + '</span></td>'
+      + '<td style="color:#ef4444;font-size:13px">' + (e.message||'') + '</td>'
+      + '<td>' + (e.country||'Unknown') + '</td>'
+      + '<td style="color:#64748b;font-size:12px">' + (e.session_id||'').substring(0,8) + '...</td>'
       + '</tr>';
   }).join('');
 
@@ -351,11 +387,65 @@ tr:hover td{background:#0f172a}
       </div>
       <div class="table-wrap">
         <table>
+      <div class="tabs">
+      <div class="tab active" onclick="switchTab('orders')">📦 Orders</div>
+      <div class="tab" onclick="switchTab('visitors')">👁 Visitors</div>
+      <div class="tab" onclick="switchTab('errors')">⚠️ Errors</div>
+    </div>
+
+    <div id="tab-orders" class="tab-content active">
+      <div class="section-header">
+        <h2>All Orders</h2>
+        <button class="refresh" onclick="location.reload()">↻ Refresh</button>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="search" placeholder="Search by name, email, route, booking ref..." oninput="filterTable()">
+      </div>
+      <div class="table-wrap">
+        <table id="orders-table">
           <thead>
-            <tr><th>Session</th><th>Page</th><th>IP</th><th>Referrer</th><th>Last Seen</th><th>Status</th></tr>
+            <tr>
+              <th>Booking Ref</th><th>Passenger</th><th>Email</th><th>Route</th>
+              <th>Date</th><th>Airline</th><th>Flight</th><th>Amount</th>
+              <th>Email</th><th>Created</th><th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="orders-body">
+            ${rows || '<tr><td colspan="11" class="empty">No orders yet</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tab-visitors" class="tab-content">
+      <div class="section-header">
+        <h2>Recent Visitors</h2>
+        <button class="refresh" onclick="location.reload()">↻ Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Session</th><th>Page</th><th>Device</th><th>Country</th><th>Referrer</th><th>Time on Site</th><th>Last Seen</th><th>Status</th></tr>
           </thead>
           <tbody>
-            ${visitorRows || '<tr><td colspan="6" class="empty">No visitors recorded yet</td></tr>'}
+            ${visitorRows || '<tr><td colspan="8" class="empty">No visitors recorded yet</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tab-errors" class="tab-content">
+      <div class="section-header">
+        <h2>Error Log</h2>
+        <button class="refresh" onclick="location.reload()">↻ Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Time</th><th>Step</th><th>Message</th><th>Country</th><th>Session</th></tr>
+          </thead>
+          <tbody id="errors-body">
+            ${errorRows || '<tr><td colspan="5" class="empty">No errors recorded</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -417,11 +507,45 @@ const server = http.createServer(function(req, res) {
         var referrer = (d.referrer || 'Direct').substring(0, 200);
         var ua = (req.headers['user-agent'] || '').substring(0, 300);
         var ip = getIP(req);
+        var duration = parseInt(d.duration) || 0;
+
+        // Detect device from user agent
+        var device = 'Desktop';
+        if (/Mobile|Android|iPhone|iPad/i.test(ua)) device = /iPad/i.test(ua) ? 'Tablet' : 'Mobile';
+
+        // Get country from Cloudflare header (free, no API needed)
+        var country = req.headers['cf-ipcountry'] || req.headers['x-country'] || 'Unknown';
+
         pool.query(
-          'INSERT INTO visitors (session_id, page, referrer, user_agent, ip, created_at, last_seen) VALUES ($1,$2,$3,$4,$5,NOW(),NOW()) ON CONFLICT DO NOTHING',
-          [sid, page, referrer, ua, ip]
+          `INSERT INTO visitors (session_id, page, referrer, user_agent, ip, country, device, duration_seconds, created_at, last_seen)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW())
+           ON CONFLICT DO NOTHING`,
+          [sid, page, referrer, ua, ip, country, device, duration]
         ).catch(function(){});
-        pool.query('UPDATE visitors SET last_seen=NOW(), page=$2 WHERE session_id=$1', [sid, page]).catch(function(){});
+        pool.query(
+          'UPDATE visitors SET last_seen=NOW(), page=$2, duration_seconds=$3 WHERE session_id=$1',
+          [sid, page, duration]
+        ).catch(function(){});
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) { res.end(JSON.stringify({ ok: false })); }
+    });
+    return;
+  }
+
+  // ── Error Tracking ───────────────────────────────────────────────
+  if (url.pathname === '/error' && req.method === 'POST') {
+    var body = '';
+    req.on('data', function(c){ body += c; });
+    req.on('end', function() {
+      res.setHeader('Content-Type', 'application/json');
+      try {
+        var d = JSON.parse(body);
+        var ip = getIP(req);
+        var country = req.headers['cf-ipcountry'] || 'Unknown';
+        pool.query(
+          'INSERT INTO errors (session_id, message, source, step, ip, country) VALUES ($1,$2,$3,$4,$5,$6)',
+          [d.sessionId||'', (d.message||'').substring(0,500), (d.source||'').substring(0,200), (d.step||'').substring(0,100), ip, country]
+        ).catch(function(){});
         res.end(JSON.stringify({ ok: true }));
       } catch(e) { res.end(JSON.stringify({ ok: false })); }
     });
@@ -545,7 +669,8 @@ button:hover{background:#1d4ed8}</style></head>
         FROM orders`),
       pool.query('SELECT COUNT(DISTINCT session_id) as online_now FROM visitors WHERE last_seen > NOW() - INTERVAL \'2 minutes\''),
       pool.query('SELECT COUNT(DISTINCT session_id) as visitors_today FROM visitors WHERE created_at::date = CURRENT_DATE'),
-      pool.query('SELECT * FROM visitors ORDER BY last_seen DESC LIMIT 100')
+      pool.query('SELECT * FROM visitors ORDER BY last_seen DESC LIMIT 100'),
+      pool.query('SELECT * FROM errors ORDER BY created_at DESC LIMIT 100')
     ]).then(function(results) {
       var orders = results[0].rows;
       var statsRow = results[1].rows[0];
@@ -560,8 +685,9 @@ button:hover{background:#1d4ed8}</style></head>
         visitors_today: parseInt(results[3].rows[0].visitors_today) || 0
       };
       var visitors = results[4].rows;
+      var errors = results[5].rows;
       res.setHeader('Content-Type', 'text/html');
-      res.end(adminHTML(orders, stats, visitors));
+      res.end(adminHTML(orders, stats, visitors, errors));
     }).catch(function(e) {
       res.setHeader('Content-Type', 'text/html');
       res.end('<h1 style="color:red">DB Error: ' + e.message + '</h1>');

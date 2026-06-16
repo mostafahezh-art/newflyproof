@@ -2102,15 +2102,35 @@ function saveStateBeforeStripe(){
 (function() {
   var sid = sessionStorage.getItem('fs_sid');
   if (!sid) { sid = Math.random().toString(36).substring(2) + Date.now(); sessionStorage.setItem('fs_sid', sid); }
+  var startTime = Date.now();
   function ping() {
+    var duration = Math.floor((Date.now() - startTime) / 1000);
     fetch('https://newflyproof-production.up.railway.app/ping', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ sessionId: sid, page: location.pathname, referrer: document.referrer })
+      body: JSON.stringify({ sessionId: sid, page: location.pathname, referrer: document.referrer, duration: duration })
     }).catch(function(){});
   }
   ping();
   setInterval(ping, 60000);
+
+  // Error tracking
+  window.addEventListener('error', function(e) {
+    fetch('https://newflyproof-production.up.railway.app/error', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ sessionId: sid, message: e.message, source: e.filename, step: 'js_error' })
+    }).catch(function(){});
+  });
+
+  // Track step errors (call this from your payment/search flow)
+  window.trackError = function(message, step) {
+    fetch('https://newflyproof-production.up.railway.app/error', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ sessionId: sid, message: message, step: step })
+    }).catch(function(){});
+  };
 })();
 </script>
 </body>
