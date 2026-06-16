@@ -300,7 +300,6 @@ table{width:100%;border-collapse:collapse;font-size:13px}
 th{background:#0f172a;color:#94a3b8;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.05em;padding:10px 16px;text-align:left;white-space:nowrap}
 td{padding:12px 16px;border-bottom:1px solid #1e293b;color:#cbd5e1;white-space:nowrap}
 tr:hover td{background:#0f172a}
-.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
 .empty{text-align:center;padding:48px;color:#475569}
 .refresh{background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:12px}
 .refresh:hover{border-color:#2563eb;color:#93c5fd}
@@ -352,8 +351,9 @@ tr:hover td{background:#0f172a}
 
   <div class="section">
     <div class="tabs">
-      <div class="tab active" onclick="switchTab('orders')">📦 Orders</div>
-      <div class="tab" onclick="switchTab('visitors')">👁 Visitors</div>
+      <div class="tab active" onclick="switchTab(this,'orders')">📦 Orders</div>
+      <div class="tab" onclick="switchTab(this,'visitors')">👁 Visitors</div>
+      <div class="tab" onclick="switchTab(this,'errors')">⚠️ Errors</div>
     </div>
 
     <div id="tab-orders" class="tab-content active">
@@ -367,48 +367,7 @@ tr:hover td{background:#0f172a}
       <div class="table-wrap">
         <table id="orders-table">
           <thead>
-            <tr>
-              <th>Booking Ref</th><th>Passenger</th><th>Email</th><th>Route</th>
-              <th>Date</th><th>Airline</th><th>Flight</th><th>Amount</th>
-              <th>Email</th><th>Created</th><th>Action</th>
-            </tr>
-          </thead>
-          <tbody id="orders-body">
-            ${rows || '<tr><td colspan="11" class="empty">No orders yet</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div id="tab-visitors" class="tab-content">
-      <div class="section-header">
-        <h2>Recent Visitors</h2>
-        <button class="refresh" onclick="location.reload()">↻ Refresh</button>
-      </div>
-      <div class="table-wrap">
-        <table>
-      <div class="tabs">
-      <div class="tab active" onclick="switchTab('orders')">📦 Orders</div>
-      <div class="tab" onclick="switchTab('visitors')">👁 Visitors</div>
-      <div class="tab" onclick="switchTab('errors')">⚠️ Errors</div>
-    </div>
-
-    <div id="tab-orders" class="tab-content active">
-      <div class="section-header">
-        <h2>All Orders</h2>
-        <button class="refresh" onclick="location.reload()">↻ Refresh</button>
-      </div>
-      <div class="search-bar">
-        <input type="text" id="search" placeholder="Search by name, email, route, booking ref..." oninput="filterTable()">
-      </div>
-      <div class="table-wrap">
-        <table id="orders-table">
-          <thead>
-            <tr>
-              <th>Booking Ref</th><th>Passenger</th><th>Email</th><th>Route</th>
-              <th>Date</th><th>Airline</th><th>Flight</th><th>Amount</th>
-              <th>Email</th><th>Created</th><th>Action</th>
-            </tr>
+            <tr><th>Booking Ref</th><th>Passenger</th><th>Email</th><th>Route</th><th>Date</th><th>Airline</th><th>Flight</th><th>Amount</th><th>Email</th><th>Created</th><th>Action</th></tr>
           </thead>
           <tbody id="orders-body">
             ${rows || '<tr><td colspan="11" class="empty">No orders yet</td></tr>'}
@@ -444,7 +403,7 @@ tr:hover td{background:#0f172a}
           <thead>
             <tr><th>Time</th><th>Step</th><th>Message</th><th>Country</th><th>Session</th></tr>
           </thead>
-          <tbody id="errors-body">
+          <tbody>
             ${errorRows || '<tr><td colspan="5" class="empty">No errors recorded</td></tr>'}
           </tbody>
         </table>
@@ -454,11 +413,11 @@ tr:hover td{background:#0f172a}
 </div>
 
 <script>
-function switchTab(name) {
-  document.querySelectorAll('.tab').forEach(function(t,i){t.classList.remove('active')});
+function switchTab(el, name) {
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});
   document.querySelectorAll('.tab-content').forEach(function(t){t.classList.remove('active')});
   document.getElementById('tab-'+name).classList.add('active');
-  event.target.classList.add('active');
+  el.classList.add('active');
 }
 function filterTable() {
   var q = document.getElementById('search').value.toLowerCase();
@@ -475,9 +434,7 @@ function resend(ref,email,name,route,date,airline,flightNum,dep,arr) {
     alert(d.success ? '✓ Email resent successfully!' : '✗ Failed: ' + d.error);
   });
 }
-function clock() {
-  document.getElementById('clock').textContent = new Date().toLocaleString();
-}
+function clock() { document.getElementById('clock').textContent = new Date().toLocaleString(); }
 clock(); setInterval(clock, 1000);
 setInterval(function(){ location.reload(); }, 60000);
 </script>
@@ -485,7 +442,6 @@ setInterval(function(){ location.reload(); }, 60000);
 </html>`;
 }
 
-// ── Server ────────────────────────────────────────────────────────
 const server = http.createServer(function(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
