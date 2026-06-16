@@ -446,8 +446,50 @@ const server = http.createServer(function(req, res) {
     return;
   }
 
-  // ── Payment ──────────────────────────────────────────────────────
-  if (url.pathname === '/pay' && req.method === 'POST') {
+  // ── Checkout (Pay + Email — atomic, single endpoint) ─────────────
+  if (url.pathname === '/checkout' && req.method === 'POST') {
+    res.setHeader('Content-Type', 'application/json');
+    var body = '';
+    req.on('data', function(chunk) { body += chunk; });
+    req.on('end', function() {
+      try {
+        var data = JSON.parse(body);
+        if (!data.token) { res.end(JSON.stringify({ success: false, error: 'No payment token' })); return; }
+        if (!data.email) { res.end(JSON.stringify({ success: false, error: 'No email' })); return; }
+
+        // Step 1: Charge via Stripe
+        stripeCharge(data.token, 500, function(err, charge) {
+          if (err || charge.error) {
+            res.end(JSON.stringify({ success: false, error: err ? err.message : charge.error.message }));
+            return;
+          }
+
+          // Step 2: Generate a signed ticket token (charge ID based)
+          var ticketToken = Buffer.from(charge.id + ':' + data.bookingRef).toString('base64');
+
+          // Step 3: Save order to DB
+          pool.query(
+            'INSERT INTO orders (booking_ref, passenger_name, email, flight_route, flight_date, airline, flight_num, dep_time, arr_time, charge_id, amount, currency) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
+            [data.bookingRef||'', data.name||'', data.email||'', data.flightRoute||'', data.flightDate||'', data.airline||'', data.flightNum||'', data.depTime||'', data.arrTime||'', charge.id, 500, 'usd']
+          ).catch(function(e){ console.error('DB insert error:', e.message); });
+
+          // Step 4: Send email
+          var htmlContent = buildEmailHtml(data.name||'Traveler', data.bookingRef||'', data.flightRoute||'', data.flightDate||'', data.airline||'', data.flightNum||'', data.depTime||'', data.arrTime||'');
+          sendBrevoEmail(data.email, data.name||'Traveler', data.bookingRef||'', data.flightRoute||'', data.flightDate||'', data.airline||'', htmlContent, function(emailErr, status) {
+            var emailOk = !emailErr && status >= 200 && status < 300;
+            pool.query('UPDATE orders SET email_sent=$1 WHERE booking_ref=$2', [emailOk, data.bookingRef||'']).catch(function(){});
+            // Return ticketToken — frontend only gets this after real charge
+            res.end(JSON.stringify({ success: true, chargeId: charge.id, ticketToken: ticketToken }));
+          });
+        });
+      } catch(e) {
+        res.end(JSON.stringify({ success: false, error: 'Invalid request' }));
+      }
+    });
+    return;
+  }
+
+
     res.setHeader('Content-Type', 'application/json');
     var body = '';
     req.on('data', function(chunk) { body += chunk; });
@@ -479,44 +521,6 @@ const server = http.createServer(function(req, res) {
     return;
   }
 
-  // ── Send Email ───────────────────────────────────────────────────
-  if (url.pathname === '/send-email' && req.method === 'POST') {
-    res.setHeader('Content-Type', 'application/json');
-    var body = '';
-    req.on('data', function(chunk) { body += chunk; });
-    req.on('end', function() {
-      try {
-        var data = JSON.parse(body);
-        var toEmail = data.email || '';
-        var toName = data.name || 'Traveler';
-        var bookingRef = data.bookingRef || '';
-        var flightRoute = data.flightRoute || '';
-        var flightDate = data.flightDate || '';
-        var airline = data.airline || '';
-        var flightNum = data.flightNum || '';
-        var depTime = data.depTime || '';
-        var arrTime = data.arrTime || '';
-
-        if (!toEmail) { res.end(JSON.stringify({ success: false, error: 'No email' })); return; }
-
-        var htmlContent = buildEmailHtml(toName, bookingRef, flightRoute, flightDate, airline, flightNum, depTime, arrTime);
-
-        sendBrevoEmail(toEmail, toName, bookingRef, flightRoute, flightDate, airline, htmlContent, function(err, status) {
-          var emailOk = !err && status >= 200 && status < 300;
-          // Update email_sent status in DB
-          pool.query('UPDATE orders SET email_sent=$1 WHERE booking_ref=$2', [emailOk, bookingRef]).catch(function(){});
-          if (err) {
-            res.end(JSON.stringify({ success: false, error: err.message }));
-          } else {
-            res.end(JSON.stringify({ success: true, status: status }));
-          }
-        });
-      } catch(e) {
-        res.end(JSON.stringify({ success: false, error: 'Invalid request: ' + e.message }));
-      }
-    });
-    return;
-  }
 
   // ── Admin Resend Email ────────────────────────────────────────────
   if (url.pathname === '/admin/resend' && req.method === 'POST') {
