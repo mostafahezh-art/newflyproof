@@ -118,6 +118,55 @@ function stripeCharge(token, amount, callback) {
   req.end();
 }
 
+function createPaymentIntent(amount, metadata, callback) {
+  var postData = 'amount=' + amount + '&currency=usd&automatic_payment_methods[enabled]=true'
+    + '&description=FlightStamp+Booking+Confirmation'
+    + '&metadata[bookingRef]=' + encodeURIComponent(metadata.bookingRef||'')
+    + '&metadata[passengerName]=' + encodeURIComponent(metadata.passengerName||'')
+    + '&metadata[email]=' + encodeURIComponent(metadata.email||'')
+    + '&metadata[flightRoute]=' + encodeURIComponent(metadata.flightRoute||'');
+  var options = {
+    hostname: 'api.stripe.com',
+    path: '/v1/payment_intents',
+    method: 'POST',
+    headers: {
+      'Authorization': 'Basic ' + Buffer.from(STRIPE_SECRET + ':').toString('base64'),
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Length': Buffer.byteLength(postData)
+    }
+  };
+  var req = https.request(options, function(res) {
+    var raw = '';
+    res.on('data', function(chunk) { raw += chunk; });
+    res.on('end', function() {
+      try { callback(null, JSON.parse(raw)); }
+      catch(e) { callback(new Error('Parse error')); }
+    });
+  });
+  req.on('error', callback);
+  req.write(postData);
+  req.end();
+}
+
+function retrievePaymentIntent(id, callback) {
+  var options = {
+    hostname: 'api.stripe.com',
+    path: '/v1/payment_intents/' + id,
+    method: 'GET',
+    headers: { 'Authorization': 'Basic ' + Buffer.from(STRIPE_SECRET + ':').toString('base64') }
+  };
+  var req = https.request(options, function(res) {
+    var raw = '';
+    res.on('data', function(chunk) { raw += chunk; });
+    res.on('end', function() {
+      try { callback(null, JSON.parse(raw)); }
+      catch(e) { callback(new Error('Parse error')); }
+    });
+  });
+  req.on('error', callback);
+  req.end();
+}
+
 function sendBrevoEmail(toEmail, toName, bookingRef, flightRoute, flightDate, airline, htmlContent, callback) {
   var emailData = JSON.stringify({
     sender: { name: 'FlightStamp', email: 'bookings@flightstamp.com' },
@@ -354,6 +403,7 @@ tr:hover td{background:#0f172a}
       <div class="tab active" onclick="switchTab(this,'orders')">📦 Orders</div>
       <div class="tab" onclick="switchTab(this,'visitors')">👁 Visitors</div>
       <div class="tab" onclick="switchTab(this,'errors')">⚠️ Errors</div>
+      <div class="tab" onclick="switchTab(this,'generate')">🎫 Generate</div>
     </div>
 
     <div id="tab-orders" class="tab-content active">
@@ -409,6 +459,48 @@ tr:hover td{background:#0f172a}
         </table>
       </div>
     </div>
+
+    <div id="tab-generate" class="tab-content">
+      <div class="section-header"><h2>Generate Test Ticket</h2></div>
+      <div style="padding:24px;max-width:500px">
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Passenger Name</label>
+          <input id="g-name" placeholder="John Smith" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Email (optional)</label>
+          <input id="g-email" placeholder="passenger@email.com" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Flight Route (e.g. CAI-DXB)</label>
+          <input id="g-route" placeholder="CAI-DXB" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Flight Date</label>
+          <input id="g-date" type="date" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Airline</label>
+          <input id="g-airline" placeholder="Emirates" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Flight Number</label>
+          <input id="g-flightnum" placeholder="EK123" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+          <div>
+            <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Departure Time</label>
+            <input id="g-dep" placeholder="09:00" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+          </div>
+          <div>
+            <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Arrival Time</label>
+            <input id="g-arr" placeholder="13:00" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+          </div>
+        </div>
+        <button onclick="generateTicket()" style="background:#2563eb;color:#fff;border:none;padding:12px 24px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;width:100%">✈ Generate Ticket</button>
+        <div id="g-result" style="margin-top:16px;font-size:13px"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -434,7 +526,34 @@ function resend(ref,email,name,route,date,airline,flightNum,dep,arr) {
     alert(d.success ? '✓ Email resent successfully!' : '✗ Failed: ' + d.error);
   });
 }
-function clock() { document.getElementById('clock').textContent = new Date().toLocaleString(); }
+function generateTicket() {
+  var result = document.getElementById('g-result');
+  result.textContent = 'Generating...';
+  result.style.color = '#94a3b8';
+  fetch('/admin/generate', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-Admin-Password':'myflightstamp@3252'},
+    body: JSON.stringify({
+      name: document.getElementById('g-name').value,
+      email: document.getElementById('g-email').value,
+      flightRoute: document.getElementById('g-route').value,
+      flightDate: document.getElementById('g-date').value,
+      airline: document.getElementById('g-airline').value,
+      flightNum: document.getElementById('g-flightnum').value,
+      depTime: document.getElementById('g-dep').value,
+      arrTime: document.getElementById('g-arr').value
+    })
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.success){
+      result.innerHTML = '<span style="color:#22c55e">✓ Ticket generated!</span> Booking Ref: <strong style="color:#fff">' + d.bookingRef + '</strong>';
+    } else {
+      result.innerHTML = '<span style="color:#ef4444">✗ Failed: ' + d.error + '</span>';
+    }
+  }).catch(function(){
+    result.innerHTML = '<span style="color:#ef4444">✗ Network error</span>';
+  });
+}
+
 clock(); setInterval(clock, 1000);
 setInterval(function(){ location.reload(); }, 60000);
 </script>
@@ -526,7 +645,76 @@ const server = http.createServer(function(req, res) {
     return;
   }
 
-  // ── Checkout (Pay + Email — atomic, single endpoint) ─────────────
+  // ── Create Payment Intent (for Payment Element) ───────────────────
+  if (url.pathname === '/create-payment-intent' && req.method === 'POST') {
+    res.setHeader('Content-Type', 'application/json');
+    var body = '';
+    req.on('data', function(chunk) { body += chunk; });
+    req.on('end', function() {
+      try {
+        var data = JSON.parse(body);
+        createPaymentIntent(500, {
+          bookingRef: data.bookingRef || '',
+          passengerName: data.name || '',
+          email: data.email || '',
+          flightRoute: data.flightRoute || ''
+        }, function(err, intent) {
+          if (err || intent.error) {
+            res.end(JSON.stringify({ success: false, error: err ? err.message : intent.error.message }));
+          } else {
+            res.end(JSON.stringify({ success: true, clientSecret: intent.client_secret, intentId: intent.id }));
+          }
+        });
+      } catch(e) {
+        res.end(JSON.stringify({ success: false, error: 'Invalid request' }));
+      }
+    });
+    return;
+  }
+
+  // ── Confirm Payment (after Payment Element confirms) ──────────────
+  if (url.pathname === '/confirm-payment' && req.method === 'POST') {
+    res.setHeader('Content-Type', 'application/json');
+    var body = '';
+    req.on('data', function(chunk) { body += chunk; });
+    req.on('end', function() {
+      try {
+        var data = JSON.parse(body);
+        if (!data.paymentIntentId) { res.end(JSON.stringify({ success: false, error: 'No payment intent' })); return; }
+
+        // Verify payment intent is actually paid
+        retrievePaymentIntent(data.paymentIntentId, function(err, intent) {
+          if (err || intent.error) {
+            res.end(JSON.stringify({ success: false, error: 'Could not verify payment' })); return;
+          }
+          if (intent.status !== 'succeeded') {
+            res.end(JSON.stringify({ success: false, error: 'Payment not completed' })); return;
+          }
+
+          var ticketToken = Buffer.from(intent.id + ':' + data.bookingRef).toString('base64');
+
+          // Save to DB
+          pool.query(
+            'INSERT INTO orders (booking_ref, passenger_name, email, flight_route, flight_date, airline, flight_num, dep_time, arr_time, charge_id, amount, currency) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
+            [data.bookingRef||'', data.name||'', data.email||'', data.flightRoute||'', data.flightDate||'', data.airline||'', data.flightNum||'', data.depTime||'', data.arrTime||'', intent.id, 500, 'usd']
+          ).catch(function(e){ console.error('DB insert error:', e.message); });
+
+          // Send email
+          var htmlContent = buildEmailHtml(data.name||'Traveler', data.bookingRef||'', data.flightRoute||'', data.flightDate||'', data.airline||'', data.flightNum||'', data.depTime||'', data.arrTime||'');
+          sendBrevoEmail(data.email, data.name||'Traveler', data.bookingRef||'', data.flightRoute||'', data.flightDate||'', data.airline||'', htmlContent, function(emailErr, status) {
+            var emailOk = !emailErr && status >= 200 && status < 300;
+            pool.query('UPDATE orders SET email_sent=$1 WHERE booking_ref=$2', [emailOk, data.bookingRef||'']).catch(function(){});
+            res.end(JSON.stringify({ success: true, ticketToken: ticketToken }));
+          });
+        });
+      } catch(e) {
+        res.end(JSON.stringify({ success: false, error: 'Invalid request' }));
+      }
+    });
+    return;
+  }
+
+
   if (url.pathname === '/checkout' && req.method === 'POST') {
     res.setHeader('Content-Type', 'application/json');
     var body = '';
@@ -569,7 +757,38 @@ const server = http.createServer(function(req, res) {
     return;
   }
 
-  // ── Admin Resend Email ────────────────────────────────────────────
+  // ── Admin Generate Ticket (no payment) ───────────────────────────
+  if (url.pathname === '/admin/generate' && req.method === 'POST') {
+    res.setHeader('Content-Type', 'application/json');
+    if (req.headers['x-admin-password'] !== ADMIN_PASSWORD) {
+      res.writeHead(403); res.end(JSON.stringify({ success: false, error: 'Unauthorized' })); return;
+    }
+    var body = '';
+    req.on('data', function(c){ body += c; });
+    req.on('end', function() {
+      try {
+        var d = JSON.parse(body);
+        var bookingRef = 'FS-TEST-' + Date.now().toString(36).toUpperCase();
+        var fakeChargeId = 'test_' + Date.now();
+        var ticketToken = Buffer.from(fakeChargeId + ':' + bookingRef).toString('base64');
+
+        pool.query(
+          'INSERT INTO orders (booking_ref, passenger_name, email, flight_route, flight_date, airline, flight_num, dep_time, arr_time, charge_id, amount, currency) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
+          [bookingRef, d.name||'Test Passenger', d.email||'', d.flightRoute||'', d.flightDate||'', d.airline||'', d.flightNum||'', d.depTime||'', d.arrTime||'', fakeChargeId, 0, 'usd']
+        ).catch(function(){});
+
+        if (d.email) {
+          var html = buildEmailHtml(d.name||'Test Passenger', bookingRef, d.flightRoute||'', d.flightDate||'', d.airline||'', d.flightNum||'', d.depTime||'', d.arrTime||'');
+          sendBrevoEmail(d.email, d.name||'Test Passenger', bookingRef, d.flightRoute||'', d.flightDate||'', d.airline||'', html, function(){});
+        }
+
+        res.end(JSON.stringify({ success: true, bookingRef: bookingRef, ticketToken: ticketToken }));
+      } catch(e) { res.end(JSON.stringify({ success: false, error: e.message })); }
+    });
+    return;
+  }
+
+
   if (url.pathname === '/admin/resend' && req.method === 'POST') {
     res.setHeader('Content-Type', 'application/json');
     if (req.headers['x-admin-password'] !== ADMIN_PASSWORD) {
