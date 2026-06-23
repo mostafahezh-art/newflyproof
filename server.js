@@ -63,6 +63,16 @@ async function initDB() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS reviews (
+      id SERIAL PRIMARY KEY,
+      rating INTEGER NOT NULL,
+      comment TEXT,
+      booking_ref VARCHAR(50),
+      route VARCHAR(100),
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
   console.log('Database ready');
 }
 
@@ -623,6 +633,29 @@ const server = http.createServer(function(req, res) {
         ).catch(function(){});
         res.end(JSON.stringify({ ok: true }));
       } catch(e) { res.end(JSON.stringify({ ok: false })); }
+    });
+    return;
+  }
+
+  // ── Reviews ──────────────────────────────────────────────────────
+  if (url.pathname === '/review' && req.method === 'POST') {
+    var body = '';
+    req.on('data', function(c){ body += c; });
+    req.on('end', function() {
+      res.setHeader('Content-Type', 'application/json');
+      try {
+        var d = JSON.parse(body);
+        var rating = parseInt(d.rating);
+        if (!rating || rating < 1 || rating > 5) {
+          res.end(JSON.stringify({ success: false, error: 'Invalid rating' }));
+          return;
+        }
+        pool.query(
+          'INSERT INTO reviews (rating, comment, booking_ref, route) VALUES ($1,$2,$3,$4)',
+          [rating, (d.comment||'').substring(0,500), (d.bookingRef||'').substring(0,50), (d.route||'').substring(0,100)]
+        ).catch(function(){});
+        res.end(JSON.stringify({ success: true }));
+      } catch(e) { res.end(JSON.stringify({ success: false })); }
     });
     return;
   }
