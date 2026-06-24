@@ -753,7 +753,25 @@ const server = http.createServer(function(req, res) {
     return;
   }
 
-  // ── Get Ticket by Token ───────────────────────────────────────────
+  // ── Test Email ────────────────────────────────────────────────────
+  if (url.pathname === '/test-email') {
+    res.setHeader('Content-Type', 'application/json');
+    var parsedUrl = new URL('http://localhost' + req.url);
+    var testEmail = parsedUrl.searchParams.get('to');
+    if(!testEmail) { res.end(JSON.stringify({ error: 'Add ?to=youremail@gmail.com' })); return; }
+    if(!BREVO_API_KEY) { res.end(JSON.stringify({ error: 'BREVO_API_KEY not set in Railway env vars' })); return; }
+    var html = '<h1>FlightStamp Test Email</h1><p>If you receive this, Brevo is working correctly.</p>';
+    sendBrevoEmail(testEmail, 'Test', 'TEST-001', 'CAI-DXB', '2026-07-01', 'Emirates', html, function(err, status) {
+      res.end(JSON.stringify({
+        success: status === 201,
+        status: status,
+        error: err ? err.message : null,
+        apiKeySet: !!BREVO_API_KEY,
+        apiKeyLength: BREVO_API_KEY.length
+      }));
+    });
+    return;
+  }
   if (url.pathname.startsWith('/ticket/') && req.method === 'GET') {
     var token = url.pathname.replace('/ticket/', '').trim();
     res.setHeader('Content-Type', 'application/json');
