@@ -744,7 +744,49 @@ const server = http.createServer(function(req, res) {
     return;
   }
 
-  // ── Hotel Leads ───────────────────────────────────────────────────
+  // ── Hotel Email ───────────────────────────────────────────────────
+  if (url.pathname === '/hotel-email' && req.method === 'POST') {
+    var body = '';
+    req.on('data', function(c){ body += c; });
+    req.on('end', function() {
+      res.setHeader('Content-Type', 'application/json');
+      try {
+        var d = JSON.parse(body);
+        if(!d.email || !d.htmlContent) {
+          res.end(JSON.stringify({ success: false, error: 'Missing fields' }));
+          return;
+        }
+        var emailData = JSON.stringify({
+          sender: { name: 'FlightStamp', email: 'bookings@flightstamp.com' },
+          to: [{ email: d.email, name: d.name || 'Guest' }],
+          subject: 'Your Hotel Reservation Confirmation - ' + (d.confirmNum || ''),
+          htmlContent: d.htmlContent
+        });
+        var options = {
+          hostname: 'api.brevo.com',
+          path: '/v3/smtp/email',
+          method: 'POST',
+          headers: {
+            'api-key': BREVO_API_KEY,
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(emailData)
+          }
+        };
+        var req2 = https.request(options, function(r2) {
+          var raw = '';
+          r2.on('data', function(c){ raw += c; });
+          r2.on('end', function(){
+            console.log('Hotel email sent:', r2.statusCode);
+            res.end(JSON.stringify({ success: r2.statusCode === 201, status: r2.statusCode }));
+          });
+        });
+        req2.on('error', function(e){ res.end(JSON.stringify({ success: false, error: e.message })); });
+        req2.write(emailData);
+        req2.end();
+      } catch(e) { res.end(JSON.stringify({ success: false, error: e.message })); }
+    });
+    return;
+  }
   if (url.pathname === '/hotel-lead' && req.method === 'POST') {
     var body = '';
     req.on('data', function(c){ body += c; });
@@ -872,8 +914,10 @@ const server = http.createServer(function(req, res) {
             [data.bookingRef||'', data.name||'', data.email||'', data.flightRoute||'', data.flightDate||'', data.airline||'', data.flightNum||'', data.depTime||'', data.arrTime||'', intent.id, 500, 'usd']
           ).catch(function(e){ console.error('DB insert error:', e.message); });
 
-          // Send email
-          var htmlContent = buildEmailHtml(data.name||'Traveler', data.bookingRef||'', data.flightRoute||'', data.flightDate||'', data.airline||'', data.flightNum||'', data.depTime||'', data.arrTime||'');
+          // Send email with full ticket HTML if provided, else summary
+          var htmlContent = data.ticketHtml
+            ? '<!DOCTYPE html><html><body style="margin:0;padding:20px;background:#f4f6f9;font-family:Arial,sans-serif"><div style="max-width:760px;margin:0 auto">' + data.ticketHtml + '</div></body></html>'
+            : buildEmailHtml(data.name||'Traveler', data.bookingRef||'', data.flightRoute||'', data.flightDate||'', data.airline||'', data.flightNum||'', data.depTime||'', data.arrTime||'');
           sendBrevoEmail(data.email, data.name||'Traveler', data.bookingRef||'', data.flightRoute||'', data.flightDate||'', data.airline||'', htmlContent, function(emailErr, status) {
             var emailOk = !emailErr && status >= 200 && status < 300;
             pool.query('UPDATE orders SET email_sent=$1 WHERE booking_ref=$2', [emailOk, data.bookingRef||'']).catch(function(){});
