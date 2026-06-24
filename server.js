@@ -73,6 +73,34 @@ async function initDB() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS hotel_leads (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(200),
+      email VARCHAR(200),
+      city VARCHAR(100),
+      checkin VARCHAR(20),
+      checkout VARCHAR(20),
+      guests INTEGER,
+      hotel_name VARCHAR(200),
+      ip VARCHAR(50),
+      country VARCHAR(100),
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS flight_leads (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(200),
+      email VARCHAR(200),
+      route VARCHAR(200),
+      date VARCHAR(20),
+      ttype VARCHAR(50),
+      ip VARCHAR(50),
+      country VARCHAR(100),
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
   console.log('Database ready');
 }
 
@@ -653,6 +681,62 @@ const server = http.createServer(function(req, res) {
         pool.query(
           'INSERT INTO reviews (rating, comment, booking_ref, route) VALUES ($1,$2,$3,$4)',
           [rating, (d.comment||'').substring(0,500), (d.bookingRef||'').substring(0,50), (d.route||'').substring(0,100)]
+        ).catch(function(){});
+        res.end(JSON.stringify({ success: true }));
+      } catch(e) { res.end(JSON.stringify({ success: false })); }
+    });
+    return;
+  }
+
+  // ── Hotel Leads ───────────────────────────────────────────────────
+  if (url.pathname === '/hotel-lead' && req.method === 'POST') {
+    var body = '';
+    req.on('data', function(c){ body += c; });
+    req.on('end', function() {
+      res.setHeader('Content-Type', 'application/json');
+      try {
+        var d = JSON.parse(body);
+        var ip = getIP(req);
+        var country = req.headers['cf-ipcountry'] || 'Unknown';
+        pool.query(
+          'INSERT INTO hotel_leads (name, email, city, checkin, checkout, guests, hotel_name, ip, country) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+          [
+            (d.name||'').substring(0,200),
+            (d.email||'').substring(0,200),
+            (d.city||'').substring(0,100),
+            (d.checkin||'').substring(0,20),
+            (d.checkout||'').substring(0,20),
+            parseInt(d.guests)||1,
+            (d.hotelName||'').substring(0,200),
+            ip, country
+          ]
+        ).catch(function(){});
+        res.end(JSON.stringify({ success: true }));
+      } catch(e) { res.end(JSON.stringify({ success: false })); }
+    });
+    return;
+  }
+
+  // ── Flight Leads ──────────────────────────────────────────────────
+  if (url.pathname === '/flight-lead' && req.method === 'POST') {
+    var body = '';
+    req.on('data', function(c){ body += c; });
+    req.on('end', function() {
+      res.setHeader('Content-Type', 'application/json');
+      try {
+        var d = JSON.parse(body);
+        var ip = getIP(req);
+        var country = req.headers['cf-ipcountry'] || 'Unknown';
+        pool.query(
+          'INSERT INTO flight_leads (name, email, route, date, ttype, ip, country) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+          [
+            (d.name||'').substring(0,200),
+            (d.email||'').substring(0,200),
+            (d.route||'').substring(0,200),
+            (d.date||'').substring(0,20),
+            (d.ttype||'').substring(0,50),
+            ip, country
+          ]
         ).catch(function(){});
         res.end(JSON.stringify({ success: true }));
       } catch(e) { res.end(JSON.stringify({ success: false })); }
