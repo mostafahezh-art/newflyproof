@@ -799,6 +799,27 @@ const server = http.createServer(function(req, res) {
       });
     return;
   }
+  // ── Send Flight Ticket Email ──────────────────────────────────────
+  if (url.pathname === '/send-email' && req.method === 'POST') {
+    var body = '';
+    req.on('data', function(c){ body += c; });
+    req.on('end', function() {
+      res.setHeader('Content-Type', 'application/json');
+      try {
+        var d = JSON.parse(body);
+        if(!d.email) { res.end(JSON.stringify({ success: false, error: 'Missing email' })); return; }
+        var html = d.ticketHtml
+          ? '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{margin:0;padding:20px;background:#f4f6f9;font-family:Arial,sans-serif}table{border-collapse:collapse}</style></head><body><div style="max-width:760px;margin:0 auto;background:#fff;padding:20px;border-radius:8px">' + d.ticketHtml + '</div></body></html>'
+          : buildEmailHtml(d.name||'Traveler', d.bookingRef||'', d.flightRoute||'', d.flightDate||'', d.airline||'', d.flightNum||'', d.depTime||'', d.arrTime||'');
+        console.log('Flight email size:', html.length, 'ticketHtml provided:', !!d.ticketHtml);
+        sendBrevoEmail(d.email, d.name||'Traveler', d.bookingRef||'', d.flightRoute||'', d.flightDate||'', d.airline||'', html, function(err, status) {
+          console.log('Flight email status:', status);
+          res.end(JSON.stringify({ success: status === 201, status: status }));
+        });
+      } catch(e) { res.end(JSON.stringify({ success: false, error: e.message })); }
+    });
+    return;
+  }
   if (url.pathname === '/hotel-email' && req.method === 'POST') {
     var body = '';
     req.on('data', function(c){ body += c; });
