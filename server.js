@@ -810,30 +810,10 @@ const server = http.createServer(function(req, res) {
           res.end(JSON.stringify({ success: false, error: 'Missing email' }));
           return;
         }
-        var html = '<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head>'
-          + '<body style=\"margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif\">'
-          + '<div style=\"max-width:600px;margin:30px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)\">'
-          + '<div style=\"background:linear-gradient(135deg,#0f2057,#1a3a8f);padding:32px 36px\">'
-          + '<div style=\"color:#fff;font-size:24px;font-weight:700\">🏨 FlightStamp</div>'
-          + '<div style=\"color:rgba(255,255,255,.8);font-size:14px;margin-top:4px\">Hotel Reservation Confirmation</div>'
-          + '</div>'
-          + '<div style=\"padding:32px 36px\">'
-          + '<h2 style=\"color:#0f172a;font-size:20px;margin:0 0 8px\">Your hotel reservation is confirmed!</h2>'
-          + '<p style=\"color:#64748b;font-size:14px;margin:0 0 24px\">Dear ' + (d.name||'Guest') + ', your hotel reservation document is ready.</p>'
-          + '<div style=\"background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:20px 24px;margin-bottom:24px\">'
-          + '<div style=\"font-size:13px;color:#166534;font-weight:600;margin-bottom:8px\">✅ Reservation Confirmed</div>'
-          + '<div style=\"font-size:20px;font-weight:800;color:#0f172a;margin-bottom:4px\">' + (d.hotelName||'Hotel') + '</div>'
-          + '<div style=\"font-size:13px;color:#64748b\">' + (d.city||'') + ' · Check-in: ' + (d.checkin||'') + ' · Check-out: ' + (d.checkout||'') + '</div>'
-          + '</div>'
-          + '<div style=\"background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:16px 20px;margin-bottom:24px\">'
-          + '<div style=\"font-size:12px;color:#64748b;margin-bottom:4px\">Confirmation Number</div>'
-          + '<div style=\"font-size:22px;font-weight:800;color:#1d4ed8\">' + (d.confirmNum||'') + '</div>'
-          + '</div>'
-          + '<div style=\"text-align:center;margin-bottom:24px\">'
-          + '<a href=\"https://flightstamp.com\" style=\"display:inline-block;background:#2563eb;color:#fff;font-size:15px;font-weight:700;padding:14px 36px;border-radius:10px;text-decoration:none\">Visit FlightStamp.com →</a>'
-          + '</div>'
-          + '<div style=\"font-size:12px;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0;padding-top:20px\">'
-          + '© 2026 FlightStamp · For travel planning purposes only.</div></div></div></body></html>';
+        // Use full hotel doc HTML if provided, else summary
+        var html = d.hotelHtml
+          ? '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{margin:0;padding:20px;background:#f4f6f9;font-family:Arial,sans-serif}table{border-collapse:collapse}td{padding:10px}</style></head><body><div style="max-width:720px;margin:0 auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.08)">' + d.hotelHtml + '</div></body></html>'
+          : '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body><p>Hotel Reservation Confirmed - ' + (d.confirmNum||'') + '</p></body></html>';
         var emailData = JSON.stringify({
           sender: { name: 'FlightStamp', email: 'bookings@flightstamp.com' },
           to: [{ email: d.email, name: d.name || 'Guest' }],
