@@ -31,9 +31,13 @@ async function initDB() {
       amount INTEGER DEFAULT 500,
       currency VARCHAR(10) DEFAULT 'usd',
       email_sent BOOLEAN DEFAULT false,
+      ticket_token VARCHAR(100),
+      ticket_data TEXT,
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS ticket_token VARCHAR(100)`);
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS ticket_data TEXT`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS visitors (
       id SERIAL PRIMARY KEY,
@@ -264,7 +268,7 @@ function parseFlights(departures, arr) {
   }).filter(function(f) { return f.depTime && f.depTime.length >= 4; });
 }
 
-function buildEmailHtml(toName, bookingRef, flightRoute, flightDate, airline, flightNum, depTime, arrTime) {
+function buildEmailHtml(toName, bookingRef, flightRoute, flightDate, airline, flightNum, depTime, arrTime, ticketLink) {
   return '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif">'
     + '<div style="max-width:600px;margin:30px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">'
     + '<div style="background:linear-gradient(135deg,#1d4ed8,#2563eb);padding:32px 36px">'
@@ -290,15 +294,41 @@ function buildEmailHtml(toName, bookingRef, flightRoute, flightDate, airline, fl
     + '<tr><td style="padding:6px 0;font-size:13px;color:#64748b">🕐 Arrival</td><td style="font-size:13px;font-weight:600;color:#0f172a">' + arrTime + '</td></tr>'
     + '<tr><td style="padding:6px 0;font-size:13px;color:#64748b">👤 Passenger</td><td style="font-size:13px;font-weight:600;color:#0f172a">' + toName + '</td></tr>'
     + '</table></div></div>'
-    + '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:16px 20px;margin-bottom:24px">'
-    + '<div style="font-size:14px;font-weight:600;color:#16a34a;margin-bottom:6px">📄 Your PDF Ticket</div>'
-    + '<div style="font-size:13px;color:#166534">Your full booking confirmation PDF was generated on our site. Please save it from your browser or visit <a href="https://flightstamp.com" style="color:#1d4ed8">flightstamp.com</a> to download it again.</div>'
-    + '</div>'
+    // Big ticket link button
+    + (ticketLink ? '<div style="text-align:center;margin-bottom:24px">'
+    + '<a href="' + ticketLink + '" style="display:inline-block;background:#2563eb;color:#fff;font-size:16px;font-weight:700;padding:16px 40px;border-radius:10px;text-decoration:none;letter-spacing:-.2px">📄 View & Download Your Ticket →</a>'
+    + '<div style="font-size:12px;color:#94a3b8;margin-top:10px">Click the button to open your ticket and download the PDF</div>'
+    + '</div>' : '')
     + '<div style="font-size:12px;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0;padding-top:20px">'
     + '© 2026 FlightStamp · <a href="https://flightstamp.com" style="color:#64748b">flightstamp.com</a><br>'
     + 'For travel planning and visa application purposes only.'
     + '</div></div></div></body></html>';
 }
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif">'
+    + '<div style="max-width:600px;margin:30px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">'
+    + '<div style="background:linear-gradient(135deg,#1d4ed8,#2563eb);padding:32px 36px">'
+    + '<div style="color:#fff;font-size:24px;font-weight:700;letter-spacing:-.5px">✈ FlightStamp</div>'
+    + '<div style="color:rgba(255,255,255,.8);font-size:14px;margin-top:4px">Proof of Onward Travel</div>'
+    + '</div>'
+    + '<div style="padding:32px 36px">'
+    + '<h2 style="color:#0f172a;font-size:20px;margin:0 0 6px">Booking Confirmed!</h2>'
+    + '<p style="color:#64748b;font-size:14px;margin:0 0 24px">Dear ' + toName + ', your flight itinerary is ready.</p>'
+    + '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:20px 24px;margin-bottom:24px">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+    + '<div><div style="font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Booking Reference</div>'
+    + '<div style="font-size:22px;font-weight:800;color:#1d4ed8;margin-top:2px">' + bookingRef + '</div></div>'
+    + '<div style="text-align:right"><div style="font-size:12px;color:#64748b">Amount Paid</div>'
+    + '<div style="font-size:20px;font-weight:700;color:#16a34a">$5.00</div></div>'
+    + '</div>'
+    + '<div style="border-top:1px solid #bfdbfe;padding-top:16px">'
+    + '<table style="width:100%;border-collapse:collapse">'
+    + '<tr><td style="padding:6px 0;font-size:13px;color:#64748b;width:140px">✈ Flight</td><td style="font-size:13px;font-weight:600;color:#0f172a">' + flightNum + ' · ' + airline + '</td></tr>'
+    + '<tr><td style="padding:6px 0;font-size:13px;color:#64748b">🛫 Route</td><td style="font-size:13px;font-weight:600;color:#0f172a">' + flightRoute + '</td></tr>'
+    + '<tr><td style="padding:6px 0;font-size:13px;color:#64748b">📅 Date</td><td style="font-size:13px;font-weight:600;color:#0f172a">' + flightDate + '</td></tr>'
+    + '<tr><td style="padding:6px 0;font-size:13px;color:#64748b">🕐 Departure</td><td style="font-size:13px;font-weight:600;color:#0f172a">' + depTime + '</td></tr>'
+    + '<tr><td style="padding:6px 0;font-size:13px;color:#64748b">🕐 Arrival</td><td style="font-size:13px;font-weight:600;color:#0f172a">' + arrTime + '</td></tr>'
+    + '<tr><td style="padding:6px 0;font-size:13px;color:#64748b">👤 Passenger</td><td style="font-size:13px;font-weight:600;color:#0f172a">' + toName + '</td></tr>'
+    + '</table></div></div>'
 
 function getIP(req) {
   return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '';
@@ -744,7 +774,24 @@ const server = http.createServer(function(req, res) {
     return;
   }
 
-  // ── Hotel Email ───────────────────────────────────────────────────
+  // ── Get Ticket by Token ───────────────────────────────────────────
+  if (url.pathname.startsWith('/ticket/') && req.method === 'GET') {
+    var token = url.pathname.replace('/ticket/', '').trim();
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    if(!token) { res.end(JSON.stringify({ success: false, error: 'No token' })); return; }
+    pool.query('SELECT ticket_data, booking_ref, passenger_name FROM orders WHERE ticket_token=$1 LIMIT 1', [token])
+      .then(function(result) {
+        if(!result.rows.length || !result.rows[0].ticket_data) {
+          res.end(JSON.stringify({ success: false, error: 'Ticket not found' }));
+        } else {
+          res.end(JSON.stringify({ success: true, data: JSON.parse(result.rows[0].ticket_data) }));
+        }
+      }).catch(function(e) {
+        res.end(JSON.stringify({ success: false, error: e.message }));
+      });
+    return;
+  }
   if (url.pathname === '/hotel-email' && req.method === 'POST') {
     var body = '';
     req.on('data', function(c){ body += c; });
@@ -906,18 +953,30 @@ const server = http.createServer(function(req, res) {
             res.end(JSON.stringify({ success: false, error: 'Payment not completed' })); return;
           }
 
-          var ticketToken = Buffer.from(intent.id + ':' + data.bookingRef).toString('base64');
+          var ticketToken = require('crypto').randomBytes(24).toString('hex');
+          var ticketLink = 'https://flightstamp.com/?ticket=' + ticketToken;
+
+          // Ticket data to store
+          var ticketData = JSON.stringify({
+            name: data.name||'', email: data.email||'',
+            bookingRef: data.bookingRef||'', flightRoute: data.flightRoute||'',
+            flightDate: data.flightDate||'', airline: data.airline||'',
+            flightNum: data.flightNum||'', depTime: data.depTime||'',
+            arrTime: data.arrTime||'', ttype: data.ttype||'One Way',
+            fc: data.fc||'', tc: data.tc||'', cl: data.cl||'Economy',
+            pax: data.pax||1, total: data.total||'5.00',
+            returnFlight: data.returnFlight||null,
+            legFlights: data.legFlights||null
+          });
 
           // Save to DB
           pool.query(
-            'INSERT INTO orders (booking_ref, passenger_name, email, flight_route, flight_date, airline, flight_num, dep_time, arr_time, charge_id, amount, currency) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
-            [data.bookingRef||'', data.name||'', data.email||'', data.flightRoute||'', data.flightDate||'', data.airline||'', data.flightNum||'', data.depTime||'', data.arrTime||'', intent.id, 500, 'usd']
+            'INSERT INTO orders (booking_ref, passenger_name, email, flight_route, flight_date, airline, flight_num, dep_time, arr_time, charge_id, amount, currency, ticket_token, ticket_data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)',
+            [data.bookingRef||'', data.name||'', data.email||'', data.flightRoute||'', data.flightDate||'', data.airline||'', data.flightNum||'', data.depTime||'', data.arrTime||'', intent.id, 500, 'usd', ticketToken, ticketData]
           ).catch(function(e){ console.error('DB insert error:', e.message); });
 
-          // Send email with full ticket HTML if provided, else summary
-          var htmlContent = data.ticketHtml
-            ? '<!DOCTYPE html><html><body style="margin:0;padding:20px;background:#f4f6f9;font-family:Arial,sans-serif"><div style="max-width:760px;margin:0 auto">' + data.ticketHtml + '</div></body></html>'
-            : buildEmailHtml(data.name||'Traveler', data.bookingRef||'', data.flightRoute||'', data.flightDate||'', data.airline||'', data.flightNum||'', data.depTime||'', data.arrTime||'');
+          // Send email with ticket link
+          var htmlContent = buildEmailHtml(data.name||'Traveler', data.bookingRef||'', data.flightRoute||'', data.flightDate||'', data.airline||'', data.flightNum||'', data.depTime||'', data.arrTime||'', ticketLink);
           sendBrevoEmail(data.email, data.name||'Traveler', data.bookingRef||'', data.flightRoute||'', data.flightDate||'', data.airline||'', htmlContent, function(emailErr, status) {
             var emailOk = !emailErr && status >= 200 && status < 300;
             pool.query('UPDATE orders SET email_sent=$1 WHERE booking_ref=$2', [emailOk, data.bookingRef||'']).catch(function(){});
