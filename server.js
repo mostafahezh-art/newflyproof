@@ -1,5 +1,6 @@
 const http = require('http');
 const https = require('https');
+const crypto = require('crypto');
 const { Pool } = require('pg');
 
 const PORT = process.env.PORT || 3000;
@@ -753,7 +754,16 @@ const server = http.createServer(function(req, res) {
     return;
   }
 
-  // ── Test Email ────────────────────────────────────────────────────
+  // ── Debug ticket lookup ───────────────────────────────────────────
+  if (url.pathname === '/debug-ticket' && req.method === 'GET') {
+    res.setHeader('Content-Type', 'application/json');
+    var token = new URL('http://localhost' + req.url).searchParams.get('token');
+    if(!token) { res.end(JSON.stringify({error:'add ?token=...'})); return; }
+    pool.query('SELECT booking_ref, passenger_name, ticket_token, LEFT(ticket_data,100) as data_preview FROM orders WHERE ticket_token=$1', [token])
+      .then(function(r){ res.end(JSON.stringify({found: r.rows.length > 0, rows: r.rows})); })
+      .catch(function(e){ res.end(JSON.stringify({error: e.message})); });
+    return;
+  }
   if (url.pathname === '/test-email') {
     res.setHeader('Content-Type', 'application/json');
     var parsedUrl = new URL('http://localhost' + req.url);
@@ -974,7 +984,7 @@ const server = http.createServer(function(req, res) {
             res.end(JSON.stringify({ success: false, error: 'Payment not completed' })); return;
           }
 
-          var ticketToken = require('crypto').randomBytes(24).toString('hex');
+          var ticketToken = crypto.randomBytes(24).toString('hex');
           var ticketLink = 'https://flightstamp.com/?ticket=' + ticketToken;
 
           // Ticket data to store
