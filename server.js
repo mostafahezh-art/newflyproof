@@ -814,6 +814,7 @@ const server = http.createServer(function(req, res) {
         var html = d.hotelHtml
           ? '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{margin:0;padding:20px;background:#f4f6f9;font-family:Arial,sans-serif}table{border-collapse:collapse}td{padding:10px}</style></head><body><div style="max-width:720px;margin:0 auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.08)">' + d.hotelHtml + '</div></body></html>'
           : '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body><p>Hotel Reservation Confirmed - ' + (d.confirmNum||'') + '</p></body></html>';
+        console.log('Hotel email HTML size:', html.length, 'chars, hotelHtml provided:', !!d.hotelHtml);
         var emailData = JSON.stringify({
           sender: { name: 'FlightStamp', email: 'bookings@flightstamp.com' },
           to: [{ email: d.email, name: d.name || 'Guest' }],
