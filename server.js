@@ -230,7 +230,11 @@ function sendBrevoEmail(toEmail, toName, bookingRef, flightRoute, flightDate, ai
     var raw = '';
     res.on('data', function(chunk) { raw += chunk; });
     res.on('end', function() {
-      console.log('Brevo response:', res.statusCode, raw.substring(0, 200));
+      console.log('Brevo status:', res.statusCode);
+      console.log('Brevo response:', raw.substring(0, 500));
+      if(res.statusCode !== 201) {
+        console.error('Brevo ERROR - API key present:', !!BREVO_API_KEY, 'Key length:', BREVO_API_KEY.length);
+      }
       callback(null, res.statusCode);
     });
   });
@@ -304,31 +308,6 @@ function buildEmailHtml(toName, bookingRef, flightRoute, flightDate, airline, fl
     + 'For travel planning and visa application purposes only.'
     + '</div></div></div></body></html>';
 }
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif">'
-    + '<div style="max-width:600px;margin:30px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">'
-    + '<div style="background:linear-gradient(135deg,#1d4ed8,#2563eb);padding:32px 36px">'
-    + '<div style="color:#fff;font-size:24px;font-weight:700;letter-spacing:-.5px">✈ FlightStamp</div>'
-    + '<div style="color:rgba(255,255,255,.8);font-size:14px;margin-top:4px">Proof of Onward Travel</div>'
-    + '</div>'
-    + '<div style="padding:32px 36px">'
-    + '<h2 style="color:#0f172a;font-size:20px;margin:0 0 6px">Booking Confirmed!</h2>'
-    + '<p style="color:#64748b;font-size:14px;margin:0 0 24px">Dear ' + toName + ', your flight itinerary is ready.</p>'
-    + '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:20px 24px;margin-bottom:24px">'
-    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
-    + '<div><div style="font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Booking Reference</div>'
-    + '<div style="font-size:22px;font-weight:800;color:#1d4ed8;margin-top:2px">' + bookingRef + '</div></div>'
-    + '<div style="text-align:right"><div style="font-size:12px;color:#64748b">Amount Paid</div>'
-    + '<div style="font-size:20px;font-weight:700;color:#16a34a">$5.00</div></div>'
-    + '</div>'
-    + '<div style="border-top:1px solid #bfdbfe;padding-top:16px">'
-    + '<table style="width:100%;border-collapse:collapse">'
-    + '<tr><td style="padding:6px 0;font-size:13px;color:#64748b;width:140px">✈ Flight</td><td style="font-size:13px;font-weight:600;color:#0f172a">' + flightNum + ' · ' + airline + '</td></tr>'
-    + '<tr><td style="padding:6px 0;font-size:13px;color:#64748b">🛫 Route</td><td style="font-size:13px;font-weight:600;color:#0f172a">' + flightRoute + '</td></tr>'
-    + '<tr><td style="padding:6px 0;font-size:13px;color:#64748b">📅 Date</td><td style="font-size:13px;font-weight:600;color:#0f172a">' + flightDate + '</td></tr>'
-    + '<tr><td style="padding:6px 0;font-size:13px;color:#64748b">🕐 Departure</td><td style="font-size:13px;font-weight:600;color:#0f172a">' + depTime + '</td></tr>'
-    + '<tr><td style="padding:6px 0;font-size:13px;color:#64748b">🕐 Arrival</td><td style="font-size:13px;font-weight:600;color:#0f172a">' + arrTime + '</td></tr>'
-    + '<tr><td style="padding:6px 0;font-size:13px;color:#64748b">👤 Passenger</td><td style="font-size:13px;font-weight:600;color:#0f172a">' + toName + '</td></tr>'
-    + '</table></div></div>'
 
 function getIP(req) {
   return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '';
