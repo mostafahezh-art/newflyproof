@@ -827,7 +827,7 @@ const server = http.createServer(function(req, res) {
         var emailData = JSON.stringify({
           sender: { name: 'FlightStamp', email: 'bookings@flightstamp.com' },
           to: [{ email: d.email, name: d.name || 'Guest' }],
-          subject: '🏨 Hotel Reservation Confirmed - ' + (d.confirmNum || ''),
+          subject: 'Hotel Reservation Confirmed - ' + (d.confirmNum || ''),
           htmlContent: html
         });
         var options = {
