@@ -305,7 +305,9 @@ function getIP(req) {
 }
 
 // ── Admin Dashboard HTML ──────────────────────────────────────────
-function adminHTML(orders, stats, visitors, errors) {
+function adminHTML(orders, stats, visitors, errors, flightLeads, hotelLeads) {
+  flightLeads = flightLeads || [];
+  hotelLeads = hotelLeads || [];
   var rows = orders.map(function(o) {
     return '<tr>'
       + '<td>' + (o.booking_ref || '') + '</td>'
@@ -353,6 +355,31 @@ function adminHTML(orders, stats, visitors, errors) {
       + '<td style="color:#ef4444;font-size:13px">' + (e.message||'') + '</td>'
       + '<td>' + (e.country||'Unknown') + '</td>'
       + '<td style="color:#64748b;font-size:12px">' + (e.session_id||'').substring(0,8) + '...</td>'
+      + '</tr>';
+  }).join('');
+
+  var flightLeadRows = (flightLeads||[]).map(function(l) {
+    return '<tr>'
+      + '<td style="font-weight:600">' + (l.name||'—') + '</td>'
+      + '<td><a href="mailto:' + (l.email||'') + '" style="color:#60a5fa">' + (l.email||'—') + '</a></td>'
+      + '<td>' + (l.route||'—') + '</td>'
+      + '<td>' + (l.date||'—') + '</td>'
+      + '<td><span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">' + (l.ttype||'—') + '</span></td>'
+      + '<td>' + (l.country||'Unknown') + '</td>'
+      + '<td style="font-size:12px;color:#64748b">' + new Date(l.created_at).toLocaleString() + '</td>'
+      + '</tr>';
+  }).join('');
+
+  var hotelLeadRows = (hotelLeads||[]).map(function(l) {
+    return '<tr>'
+      + '<td style="font-weight:600">' + (l.name||'—') + '</td>'
+      + '<td><a href="mailto:' + (l.email||'') + '" style="color:#60a5fa">' + (l.email||'—') + '</a></td>'
+      + '<td>' + (l.city||'—') + '</td>'
+      + '<td>' + (l.checkin||'—') + ' → ' + (l.checkout||'—') + '</td>'
+      + '<td>' + (l.hotel_name||'—') + '</td>'
+      + '<td>' + (l.guests||1) + '</td>'
+      + '<td>' + (l.country||'Unknown') + '</td>'
+      + '<td style="font-size:12px;color:#64748b">' + new Date(l.created_at).toLocaleString() + '</td>'
       + '</tr>';
   }).join('');
 
@@ -440,6 +467,7 @@ tr:hover td{background:#0f172a}
     <div class="tabs">
       <div class="tab active" onclick="switchTab(this,'orders')">📦 Orders</div>
       <div class="tab" onclick="switchTab(this,'visitors')">👁 Visitors</div>
+      <div class="tab" onclick="switchTab(this,'leads')">📧 Leads</div>
       <div class="tab" onclick="switchTab(this,'errors')">⚠️ Errors</div>
       <div class="tab" onclick="switchTab(this,'generate')">🎫 Generate</div>
     </div>
@@ -481,9 +509,37 @@ tr:hover td{background:#0f172a}
       </div>
     </div>
 
-    <div id="tab-errors" class="tab-content">
+    <div id="tab-leads" class="tab-content">
       <div class="section-header">
-        <h2>Error Log</h2>
+        <h2>✈ Flight Leads <span style="font-size:13px;color:#64748b;font-weight:400">(${flightLeads.length} total)</span></h2>
+        <button class="refresh" onclick="location.reload()">↻ Refresh</button>
+      </div>
+      <div class="table-wrap" style="margin-bottom:32px">
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Email</th><th>Route</th><th>Date</th><th>Type</th><th>Country</th><th>Time</th></tr>
+          </thead>
+          <tbody>
+            ${flightLeadRows || '<tr><td colspan="7" class="empty">No flight leads yet</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+      <div class="section-header">
+        <h2>🏨 Hotel Leads <span style="font-size:13px;color:#64748b;font-weight:400">(${hotelLeads.length} total)</span></h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Email</th><th>City</th><th>Dates</th><th>Hotel</th><th>Guests</th><th>Country</th><th>Time</th></tr>
+          </thead>
+          <tbody>
+            ${hotelLeadRows || '<tr><td colspan="8" class="empty">No hotel leads yet</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tab-errors" class="tab-content">
         <button class="refresh" onclick="location.reload()">↻ Refresh</button>
       </div>
       <div class="table-wrap">
@@ -962,7 +1018,9 @@ button:hover{background:#1d4ed8}</style></head>
       pool.query('SELECT COUNT(DISTINCT session_id) as online_now FROM visitors WHERE last_seen > NOW() - INTERVAL \'2 minutes\''),
       pool.query('SELECT COUNT(DISTINCT session_id) as visitors_today FROM visitors WHERE created_at::date = CURRENT_DATE'),
       pool.query('SELECT * FROM visitors ORDER BY last_seen DESC LIMIT 100'),
-      pool.query('SELECT * FROM errors ORDER BY created_at DESC LIMIT 100')
+      pool.query('SELECT * FROM errors ORDER BY created_at DESC LIMIT 100'),
+      pool.query('SELECT * FROM flight_leads ORDER BY created_at DESC LIMIT 200'),
+      pool.query('SELECT * FROM hotel_leads ORDER BY created_at DESC LIMIT 200')
     ]).then(function(results) {
       var orders = results[0].rows;
       var statsRow = results[1].rows[0];
@@ -978,8 +1036,10 @@ button:hover{background:#1d4ed8}</style></head>
       };
       var visitors = results[4].rows;
       var errors = results[5].rows;
+      var flightLeads = results[6].rows;
+      var hotelLeads = results[7].rows;
       res.setHeader('Content-Type', 'text/html');
-      res.end(adminHTML(orders, stats, visitors, errors));
+      res.end(adminHTML(orders, stats, visitors, errors, flightLeads, hotelLeads));
     }).catch(function(e) {
       res.setHeader('Content-Type', 'text/html');
       res.end('<h1 style="color:red">DB Error: ' + e.message + '</h1>');
