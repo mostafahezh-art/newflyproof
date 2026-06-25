@@ -7,7 +7,24 @@ const PORT = process.env.PORT || 3000;
 const RAPIDAPI_KEY = 'c4632b8ac2msh212c4b52b4297d2p1f4e40jsna1d0697f430a';
 const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY || '';
 const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
-const ADMIN_PASSWORD = 'myflightstamp@3252';
+const TELEGRAM_TOKEN = '8435631829:AAE6xjep5vpUkVS5oP11O5PYY9HFryYrLb4';
+const TELEGRAM_CHAT_ID = '1192024533';
+
+function sendTelegram(message) {
+  var body = JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: message, parse_mode: 'HTML' });
+  var options = {
+    hostname: 'api.telegram.org',
+    path: '/bot' + TELEGRAM_TOKEN + '/sendMessage',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+  };
+  var req = https.request(options, function(res) {
+    res.on('data', function(){});
+  });
+  req.on('error', function(e){ console.log('Telegram error:', e.message); });
+  req.write(body);
+  req.end();
+}
 
 // ── Database ──────────────────────────────────────────────────────
 const pool = new Pool({
@@ -889,6 +906,7 @@ const server = http.createServer(function(req, res) {
             ip, country
           ]
         ).catch(function(){});
+        sendTelegram('🏨 <b>New Hotel Lead</b>\n👤 ' + (d.name||'Unknown') + '\n📧 ' + (d.email||'') + '\n🌆 ' + (d.city||'') + '\n📅 ' + (d.checkin||'') + ' → ' + (d.checkout||'') + '\n🏨 ' + (d.hotelName||'') + '\n🌍 ' + country);
         res.end(JSON.stringify({ success: true }));
       } catch(e) { res.end(JSON.stringify({ success: false })); }
     });
@@ -916,6 +934,7 @@ const server = http.createServer(function(req, res) {
             ip, country
           ]
         ).catch(function(){});
+        sendTelegram('✈️ <b>New Flight Lead</b>\n👤 ' + (d.name||'Unknown') + '\n📧 ' + (d.email||'') + '\n🛫 ' + (d.route||'') + '\n📅 ' + (d.date||'') + '\n🌍 ' + country);
         res.end(JSON.stringify({ success: true }));
       } catch(e) { res.end(JSON.stringify({ success: false })); }
     });
@@ -1013,6 +1032,8 @@ const server = http.createServer(function(req, res) {
           sendBrevoEmail(data.email, data.name||'Traveler', data.bookingRef||'', data.flightRoute||'', data.flightDate||'', data.airline||'', htmlContent, function(emailErr, status) {
             var emailOk = !emailErr && status >= 200 && status < 300;
             pool.query('UPDATE orders SET email_sent=$1 WHERE booking_ref=$2', [emailOk, data.bookingRef||'']).catch(function(){});
+            // Telegram notification
+            sendTelegram('💰 <b>New Payment!</b>\n👤 ' + (data.name||'Unknown') + '\n✈️ ' + (data.flightRoute||'') + '\n📅 ' + (data.flightDate||'') + '\n📧 ' + (data.email||'') + '\n🔖 ' + (data.bookingRef||'') + '\n💵 $5.00');
             res.end(JSON.stringify({ success: true, ticketToken: ticketToken }));
           });
         });
