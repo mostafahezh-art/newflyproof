@@ -352,6 +352,7 @@ function adminHTML(orders, stats, visitors, errors, flightLeads, hotelLeads) {
       + '<button onclick="resend(\'' + o.booking_ref + '\',\'' + (o.email||'') + '\',\'' + (o.passenger_name||'') + '\',\'' + (o.flight_route||'') + '\',\'' + (o.flight_date||'') + '\',\'' + (o.airline||'') + '\',\'' + (o.flight_num||'') + '\',\'' + (o.dep_time||'') + '\',\'' + (o.arr_time||'') + '\')" style="background:#2563eb;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">Resend</button>'
       + '<button onclick="openMsg(\'' + (o.email||'') + '\',\'' + (o.passenger_name||'') + '\',\'' + o.booking_ref + '\')" style="background:#7c3aed;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">✉ Message</button>'
       + (o.ticket_token ? '<a href="https://flightstamp.com/?ticket=' + o.ticket_token + '" target="_blank" style="background:#16a34a;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px;text-decoration:none;white-space:nowrap">📄 View Ticket</a>' : '')
+      + '<button onclick="deleteRow(this,\'orders\',\'id\',' + o.id + ')" style="background:#ef4444;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">🗑</button>'
       + '</td>'
       + '</tr>';
   }).join('');
@@ -377,6 +378,7 @@ function adminHTML(orders, stats, visitors, errors, flightLeads, hotelLeads) {
       + '<td>' + durStr + '</td>'
       + '<td>' + agoStr + '</td>'
       + '<td>' + (isOnline ? '<span style="color:#16a34a;font-weight:700">● Online</span>' : '<span style="color:#94a3b8">Offline</span>') + '</td>'
+      + '<td><button onclick="deleteRow(this,\'visitors\',\'id\',' + v.id + ')" style="background:#ef4444;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">🗑</button></td>'
       + '</tr>';
   }).join('');
 
@@ -387,6 +389,7 @@ function adminHTML(orders, stats, visitors, errors, flightLeads, hotelLeads) {
       + '<td style="color:#ef4444;font-size:13px">' + (e.message||'') + '</td>'
       + '<td>' + (e.country||'Unknown') + '</td>'
       + '<td style="color:#64748b;font-size:12px">' + (e.session_id||'').substring(0,8) + '...</td>'
+      + '<td><button onclick="deleteRow(this,\'errors\',\'id\',' + e.id + ')" style="background:#ef4444;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">🗑</button></td>'
       + '</tr>';
   }).join('');
 
@@ -399,6 +402,7 @@ function adminHTML(orders, stats, visitors, errors, flightLeads, hotelLeads) {
       + '<td><span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">' + (l.ttype||'—') + '</span></td>'
       + '<td>' + (l.country||'Unknown') + '</td>'
       + '<td style="font-size:12px;color:#64748b">' + new Date(l.created_at).toLocaleString() + '</td>'
+      + '<td><button onclick="deleteRow(this,\'flight_leads\',\'id\',' + l.id + ')" style="background:#ef4444;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">🗑</button></td>'
       + '</tr>';
   }).join('');
 
@@ -412,6 +416,7 @@ function adminHTML(orders, stats, visitors, errors, flightLeads, hotelLeads) {
       + '<td>' + (l.guests||1) + '</td>'
       + '<td>' + (l.country||'Unknown') + '</td>'
       + '<td style="font-size:12px;color:#64748b">' + new Date(l.created_at).toLocaleString() + '</td>'
+      + '<td><button onclick="deleteRow(this,\'hotel_leads\',\'id\',' + l.id + ')" style="background:#ef4444;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">🗑</button></td>'
       + '</tr>';
   }).join('');
 
@@ -651,6 +656,18 @@ tr:hover td{background:#0f172a}
 </div>
 
 <script>
+function deleteRow(btn, table, col, id) {
+  if(!confirm('Delete this record permanently?')) return;
+  var row = btn.closest('tr');
+  fetch('/admin/delete', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-Admin-Password':'myflightstamp@3252'},
+    body: JSON.stringify({ table: table, col: col, id: id })
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if(d.success){ row.style.opacity='0'; setTimeout(function(){ row.remove(); }, 300); }
+    else { alert('Delete failed: ' + d.error); }
+  }).catch(function(){ alert('Network error'); });
+}
 function sendStandaloneEmail() {
   var email = document.getElementById('se-email').value.trim();
   var subject = document.getElementById('se-subject').value.trim();
@@ -1232,6 +1249,28 @@ const server = http.createServer(function(req, res) {
           if (err) res.end(JSON.stringify({ success: false, error: err.message }));
           else res.end(JSON.stringify({ success: true }));
         });
+      } catch(e) { res.end(JSON.stringify({ success: false, error: e.message })); }
+    });
+    return;
+  }
+
+  // ── Admin Delete Record ──────────────────────────────────────────
+  if (url.pathname === '/admin/delete' && req.method === 'POST') {
+    res.setHeader('Content-Type', 'application/json');
+    if (req.headers['x-admin-password'] !== ADMIN_PASSWORD) {
+      res.writeHead(403); res.end(JSON.stringify({ success: false, error: 'Unauthorized' })); return;
+    }
+    var body = '';
+    req.on('data', function(c){ body += c; });
+    req.on('end', function() {
+      try {
+        var d = JSON.parse(body);
+        var allowed = ['orders', 'visitors', 'errors', 'flight_leads', 'hotel_leads'];
+        if (!allowed.includes(d.table)) { res.end(JSON.stringify({ success: false, error: 'Invalid table' })); return; }
+        if (!d.id || isNaN(parseInt(d.id))) { res.end(JSON.stringify({ success: false, error: 'Invalid id' })); return; }
+        pool.query('DELETE FROM ' + d.table + ' WHERE id=$1', [parseInt(d.id)])
+          .then(function(){ res.end(JSON.stringify({ success: true })); })
+          .catch(function(e){ res.end(JSON.stringify({ success: false, error: e.message })); });
       } catch(e) { res.end(JSON.stringify({ success: false, error: e.message })); }
     });
     return;
