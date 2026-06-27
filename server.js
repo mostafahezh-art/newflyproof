@@ -426,39 +426,52 @@ function adminHTML(orders, stats, visitors, errors, flightLeads, hotelLeads) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>FlightStamp Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
-.topbar{background:linear-gradient(135deg,#1d4ed8,#2563eb);padding:16px 32px;display:flex;align-items:center;justify-content:space-between}
-.topbar h1{font-size:20px;font-weight:700;color:#fff}
-.topbar span{font-size:13px;color:rgba(255,255,255,.7)}
-.content{padding:28px 32px;max-width:1400px;margin:0 auto}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:28px}
-.stat{background:#1e293b;border-radius:12px;padding:20px 24px;border:1px solid #334155}
-.stat .label{font-size:12px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
-.stat .value{font-size:32px;font-weight:800;color:#fff}
-.stat .sub{font-size:12px;color:#64748b;margin-top:4px}
-.online-dot{width:10px;height:10px;background:#22c55e;border-radius:50%;display:inline-block;margin-right:6px;animation:pulse 2s infinite}
+:root{
+  --blue:#2563eb;--blue-dark:#1d4ed8;--blue-light:#eff6ff;--blue-mid:#dbeafe;
+  --txt:#0f172a;--txt2:#475569;--txt3:#94a3b8;
+  --border:#e2e8f0;--bg:#f8fafc;--white:#ffffff;
+  --green:#16a34a;--red:#ef4444;--purple:#7c3aed;
+}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh}
+.topbar{background:linear-gradient(135deg,var(--blue-dark),var(--blue));padding:16px 32px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 12px rgba(37,99,235,.15)}
+.topbar h1{font-size:20px;font-weight:800;color:#fff;letter-spacing:-.3px}
+.topbar span{font-size:13px;color:rgba(255,255,255,.75);font-weight:500}
+.content{padding:28px 32px;max-width:1500px;margin:0 auto}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px;margin-bottom:28px}
+.stat{background:var(--white);border-radius:14px;padding:20px 24px;border:1.5px solid var(--border);box-shadow:0 1px 4px rgba(0,0,0,.05);transition:box-shadow .2s}
+.stat:hover{box-shadow:0 4px 16px rgba(37,99,235,.08)}
+.stat .label{font-size:11px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px}
+.stat .value{font-size:30px;font-weight:800;color:var(--txt)}
+.stat .value.green{color:var(--green)}
+.stat .value.blue{color:var(--blue)}
+.stat .sub{font-size:12px;color:var(--txt3);margin-top:4px;font-weight:500}
+.online-dot{width:9px;height:9px;background:#22c55e;border-radius:50%;display:inline-block;margin-right:5px;animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.section{background:#1e293b;border-radius:12px;border:1px solid #334155;margin-bottom:24px;overflow:hidden}
-.section-header{padding:16px 24px;border-bottom:1px solid #334155;display:flex;align-items:center;justify-content:space-between}
-.section-header h2{font-size:15px;font-weight:600;color:#f1f5f9}
-.search-bar{padding:12px 24px;border-bottom:1px solid #334155;background:#0f172a}
-.search-bar input{background:#1e293b;border:1px solid #334155;color:#e2e8f0;padding:8px 14px;border-radius:8px;font-size:13px;width:300px;outline:none}
-.search-bar input:focus{border-color:#2563eb}
+.section{background:var(--white);border-radius:14px;border:1.5px solid var(--border);margin-bottom:24px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.section-header{padding:16px 24px;border-bottom:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--white)}
+.section-header h2{font-size:15px;font-weight:700;color:var(--txt)}
+.search-bar{padding:12px 24px;border-bottom:1.5px solid var(--border);background:var(--bg)}
+.search-bar input{background:var(--white);border:1.5px solid var(--border);color:var(--txt);padding:8px 14px;border-radius:8px;font-size:13px;width:320px;outline:none;font-family:inherit}
+.search-bar input:focus{border-color:var(--blue)}
 .table-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th{background:#0f172a;color:#94a3b8;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.05em;padding:10px 16px;text-align:left;white-space:nowrap}
-td{padding:12px 16px;border-bottom:1px solid #1e293b;color:#cbd5e1;white-space:nowrap}
-tr:hover td{background:#0f172a}
-.empty{text-align:center;padding:48px;color:#475569}
-.refresh{background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:12px}
-.refresh:hover{border-color:#2563eb;color:#93c5fd}
-.tabs{display:flex;gap:2px;padding:0 24px;background:#0f172a;border-bottom:1px solid #334155}
-.tab{padding:12px 20px;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
-.tab.active{color:#2563eb;border-bottom-color:#2563eb}
+th{background:var(--bg);color:var(--txt3);font-weight:700;text-transform:uppercase;font-size:11px;letter-spacing:.06em;padding:10px 16px;text-align:left;white-space:nowrap;border-bottom:1.5px solid var(--border)}
+td{padding:12px 16px;border-bottom:1px solid var(--border);color:var(--txt2);white-space:nowrap;font-weight:500}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--blue-light)}
+.empty{text-align:center;padding:48px;color:var(--txt3);font-weight:500}
+.refresh{background:var(--white);border:1.5px solid var(--border);color:var(--txt2);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;transition:all .15s}
+.refresh:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-light)}
+.tabs{display:flex;gap:0;padding:0 8px;background:var(--white);border-bottom:1.5px solid var(--border)}
+.tab{padding:14px 20px;font-size:13px;font-weight:600;color:var(--txt3);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;margin-bottom:-1.5px}
+.tab:hover{color:var(--txt2)}
+.tab.active{color:var(--blue);border-bottom-color:var(--blue)}
 .tab-content{display:none}
 .tab-content.active{display:block}
+input,textarea,select{font-family:'Plus Jakarta Sans',sans-serif}
 </style>
 </head>
 <body>
@@ -470,32 +483,32 @@ tr:hover td{background:#0f172a}
   <div class="stats">
     <div class="stat">
       <div class="label">Total Revenue</div>
-      <div class="value" style="color:#22c55e">$${((stats.total_revenue || 0)/100).toFixed(2)}</div>
+      <div class="value" style="color:var(--green)">$${((stats.total_revenue || 0)/100).toFixed(2)}</div>
       <div class="sub">All time</div>
     </div>
     <div class="stat">
       <div class="label">Total Orders</div>
-      <div class="value">${stats.total_orders || 0}</div>
+      <div class="value" style="color:var(--txt)">${stats.total_orders || 0}</div>
       <div class="sub">Completed bookings</div>
     </div>
     <div class="stat">
       <div class="label">Today's Revenue</div>
-      <div class="value" style="color:#60a5fa">$${((stats.today_revenue || 0)/100).toFixed(2)}</div>
+      <div class="value" style="color:var(--blue)">$${((stats.today_revenue || 0)/100).toFixed(2)}</div>
       <div class="sub">${stats.today_orders || 0} orders today</div>
     </div>
     <div class="stat">
       <div class="label">This Month</div>
-      <div class="value" style="color:#a78bfa">$${((stats.month_revenue || 0)/100).toFixed(2)}</div>
+      <div class="value" style="color:var(--blue)">$${((stats.month_revenue || 0)/100).toFixed(2)}</div>
       <div class="sub">${stats.month_orders || 0} orders</div>
     </div>
     <div class="stat">
       <div class="label"><span class="online-dot"></span>Online Now</div>
-      <div class="value" style="color:#22c55e">${stats.online_now || 0}</div>
+      <div class="value" style="color:var(--green)">${stats.online_now || 0}</div>
       <div class="sub">Last 2 minutes</div>
     </div>
     <div class="stat">
       <div class="label">Visitors Today</div>
-      <div class="value">${stats.visitors_today || 0}</div>
+      <div class="value" style="color:var(--txt)">${stats.visitors_today || 0}</div>
       <div class="sub">Unique sessions</div>
     </div>
   </div>
@@ -596,36 +609,36 @@ tr:hover td{background:#0f172a}
       <div style="padding:24px;max-width:500px">
         <div style="margin-bottom:12px">
           <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Passenger Name</label>
-          <input id="g-name" placeholder="John Smith" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+          <input id="g-name" placeholder="John Smith" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
         </div>
         <div style="margin-bottom:12px">
           <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Email (optional)</label>
-          <input id="g-email" placeholder="passenger@email.com" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+          <input id="g-email" placeholder="passenger@email.com" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
         </div>
         <div style="margin-bottom:12px">
           <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Flight Route (e.g. CAI-DXB)</label>
-          <input id="g-route" placeholder="CAI-DXB" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+          <input id="g-route" placeholder="CAI-DXB" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
         </div>
         <div style="margin-bottom:12px">
           <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Flight Date</label>
-          <input id="g-date" type="date" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+          <input id="g-date" type="date" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
         </div>
         <div style="margin-bottom:12px">
           <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Airline</label>
-          <input id="g-airline" placeholder="Emirates" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+          <input id="g-airline" placeholder="Emirates" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
         </div>
         <div style="margin-bottom:12px">
           <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Flight Number</label>
-          <input id="g-flightnum" placeholder="EK123" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+          <input id="g-flightnum" placeholder="EK123" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
           <div>
             <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Departure Time</label>
-            <input id="g-dep" placeholder="09:00" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+            <input id="g-dep" placeholder="09:00" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
           </div>
           <div>
             <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Arrival Time</label>
-            <input id="g-arr" placeholder="13:00" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+            <input id="g-arr" placeholder="13:00" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
           </div>
         </div>
         <button onclick="generateTicket()" style="background:#2563eb;color:#fff;border:none;padding:12px 24px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;width:100%">✈ Generate Ticket</button>
@@ -638,15 +651,15 @@ tr:hover td{background:#0f172a}
       <div style="padding:24px;max-width:560px">
         <div style="margin-bottom:12px">
           <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">To (Email)</label>
-          <input id="se-email" type="email" placeholder="customer@email.com" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box">
+          <input id="se-email" type="email" placeholder="customer@email.com" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box">
         </div>
         <div style="margin-bottom:12px">
           <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Subject</label>
-          <input id="se-subject" placeholder="Subject..." style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box">
+          <input id="se-subject" placeholder="Subject..." style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box">
         </div>
         <div style="margin-bottom:20px">
           <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Message</label>
-          <textarea id="se-body" rows="10" placeholder="Type your message here..." style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none;resize:vertical;box-sizing:border-box;font-family:inherit"></textarea>
+          <textarea id="se-body" rows="10" placeholder="Type your message here..." style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none;resize:vertical;box-sizing:border-box;font-family:inherit"></textarea>
         </div>
         <button onclick="sendStandaloneEmail()" style="background:#7c3aed;color:#fff;border:none;padding:12px 24px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;width:100%">📨 Send Email</button>
         <div id="se-result" style="margin-top:16px;font-size:13px"></div>
@@ -735,7 +748,7 @@ function generateTicket() {
     })
   }).then(function(r){return r.json()}).then(function(d){
     if(d.success){
-      result.innerHTML = '<span style="color:#22c55e">✓ Ticket generated!</span> Booking Ref: <strong style="color:#fff">' + d.bookingRef + '</strong>';
+      result.innerHTML = '<span style="color:var(--green)">✓ Ticket generated!</span> Booking Ref: <strong style="color:var(--txt)">' + d.bookingRef + '</strong>';
     } else {
       result.innerHTML = '<span style="color:#ef4444">✗ Failed: ' + d.error + '</span>';
     }
@@ -778,25 +791,25 @@ function sendMsg() {
 </script>
 
 <!-- Message Modal -->
-<div id="msg-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center">
-  <div style="background:#1e293b;border:1px solid #334155;border-radius:16px;padding:32px;width:520px;max-width:95vw">
+<div id="msg-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:9999;align-items:center;justify-content:center;backdrop-filter:blur(4px)">
+  <div style="background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:32px;width:520px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.15)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-      <h3 style="color:#fff;margin:0">✉ Send Message</h3>
-      <button onclick="closeMsg()" style="background:none;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button>
+      <h3 style="color:var(--txt);margin:0;font-size:17px;font-weight:700">✉ Send Message</h3>
+      <button onclick="closeMsg()" style="background:none;border:none;color:var(--txt3);font-size:20px;cursor:pointer;line-height:1">✕</button>
     </div>
-    <div style="margin-bottom:12px"><label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">To (Email)</label><input id="msg-email" type="email" placeholder="customer@email.com" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box"></div>
     <input type="hidden" id="msg-ref">
+    <div style="margin-bottom:12px"><label style="display:block;font-size:12px;font-weight:700;color:var(--txt3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">To (Email)</label><input id="msg-email" type="email" placeholder="customer@email.com" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box;font-family:inherit"></div>
     <div style="margin-bottom:12px">
-      <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Subject</label>
-      <input id="msg-subject" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box">
+      <label style="display:block;font-size:12px;font-weight:700;color:var(--txt3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Subject</label>
+      <input id="msg-subject" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box;font-family:inherit">
     </div>
-    <div style="margin-bottom:16px">
-      <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Message</label>
-      <textarea id="msg-body" rows="8" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none;resize:vertical;box-sizing:border-box;font-family:inherit"></textarea>
+    <div style="margin-bottom:20px">
+      <label style="display:block;font-size:12px;font-weight:700;color:var(--txt3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Message</label>
+      <textarea id="msg-body" rows="8" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none;resize:vertical;box-sizing:border-box;font-family:inherit"></textarea>
     </div>
     <div style="display:flex;gap:10px;align-items:center">
-      <button onclick="sendMsg()" style="background:#7c3aed;color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Send</button>
-      <button onclick="closeMsg()" style="background:#334155;color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:14px;cursor:pointer">Cancel</button>
+      <button onclick="sendMsg()" style="background:var(--purple);color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Send</button>
+      <button onclick="closeMsg()" style="background:var(--bg);color:var(--txt2);border:1.5px solid var(--border);padding:10px 24px;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;font-family:inherit">Cancel</button>
       <span id="msg-result" style="font-size:13px"></span>
     </div>
   </div>
@@ -1355,7 +1368,7 @@ const server = http.createServer(function(req, res) {
 <style>*{box-sizing:border-box}body{background:#0f172a;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:-apple-system,sans-serif}
 .box{background:#1e293b;border:1px solid #334155;border-radius:16px;padding:40px;width:360px;text-align:center}
 h2{color:#fff;margin-bottom:8px}p{color:#64748b;font-size:14px;margin-bottom:24px}
-input{width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:12px 16px;border-radius:10px;font-size:14px;outline:none;margin-bottom:16px}
+input{width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:12px 16px;border-radius:10px;font-size:14px;outline:none;margin-bottom:16px}
 input:focus{border-color:#2563eb}
 button{width:100%;background:#2563eb;color:#fff;border:none;padding:12px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer}
 button:hover{background:#1d4ed8}</style></head>
