@@ -578,7 +578,7 @@ tr:hover td{background:#0f172a}
     </div>
 
     <div id="tab-errors" class="tab-content">
-      <div class="section-header"><h2>Errors</h2><button class="refresh" onclick="location.reload()">↻ Refresh</button></div>
+      <div class="section-header"><h2>Errors</h2><div style="display:flex;gap:8px"><button class="refresh" onclick="location.reload()">↻ Refresh</button><button onclick="clearAllErrors()" style="background:#ef4444;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🗑 Clear All</button></div></div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -656,6 +656,16 @@ tr:hover td{background:#0f172a}
 </div>
 
 <script>
+function clearAllErrors() {
+  if(!confirm('Delete ALL errors permanently?')) return;
+  fetch('/admin/clear-errors', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-Admin-Password':'myflightstamp@3252'}
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if(d.success){ location.reload(); }
+    else { alert('Failed: ' + d.error); }
+  }).catch(function(){ alert('Network error'); });
+}
 function deleteRow(btn, table, col, id) {
   if(!confirm('Delete this record permanently?')) return;
   var row = btn.closest('tr');
@@ -1251,6 +1261,18 @@ const server = http.createServer(function(req, res) {
         });
       } catch(e) { res.end(JSON.stringify({ success: false, error: e.message })); }
     });
+    return;
+  }
+
+  // ── Admin Clear All Errors ───────────────────────────────────────
+  if (url.pathname === '/admin/clear-errors' && req.method === 'POST') {
+    res.setHeader('Content-Type', 'application/json');
+    if (req.headers['x-admin-password'] !== ADMIN_PASSWORD) {
+      res.writeHead(403); res.end(JSON.stringify({ success: false, error: 'Unauthorized' })); return;
+    }
+    pool.query('DELETE FROM errors')
+      .then(function(){ res.end(JSON.stringify({ success: true })); })
+      .catch(function(e){ res.end(JSON.stringify({ success: false, error: e.message })); });
     return;
   }
 
