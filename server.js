@@ -348,7 +348,10 @@ function adminHTML(orders, stats, visitors, errors, flightLeads, hotelLeads) {
       + '<td style="color:#16a34a;font-weight:700">$' + ((o.amount || 500) / 100).toFixed(2) + '</td>'
       + '<td>' + (o.email_sent ? '<span style="color:#16a34a">✓ Sent</span>' : '<span style="color:#ef4444">✗ Failed</span>') + '</td>'
       + '<td style="color:#64748b;font-size:12px">' + new Date(o.created_at).toLocaleString() + '</td>'
-      + '<td><button onclick="resend(\'' + o.booking_ref + '\',\'' + (o.email||'') + '\',\'' + (o.passenger_name||'') + '\',\'' + (o.flight_route||'') + '\',\'' + (o.flight_date||'') + '\',\'' + (o.airline||'') + '\',\'' + (o.flight_num||'') + '\',\'' + (o.dep_time||'') + '\',\'' + (o.arr_time||'') + '\')" style="background:#2563eb;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">Resend</button></td>'
+      + '<td style="display:flex;gap:6px;align-items:center">'
+      + '<button onclick="resend(\'' + o.booking_ref + '\',\'' + (o.email||'') + '\',\'' + (o.passenger_name||'') + '\',\'' + (o.flight_route||'') + '\',\'' + (o.flight_date||'') + '\',\'' + (o.airline||'') + '\',\'' + (o.flight_num||'') + '\',\'' + (o.dep_time||'') + '\',\'' + (o.arr_time||'') + '\')" style="background:#2563eb;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">Resend</button>'
+      + (o.ticket_token ? '<a href="https://flightstamp.com/?ticket=' + o.ticket_token + '" target="_blank" style="background:#16a34a;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px;text-decoration:none;white-space:nowrap">📄 View Ticket</a>' : '')
+      + '</td>'
       + '</tr>';
   }).join('');
 
