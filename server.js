@@ -571,8 +571,7 @@ tr:hover td{background:#0f172a}
     </div>
 
     <div id="tab-errors" class="tab-content">
-        <button class="refresh" onclick="location.reload()">↻ Refresh</button>
-      </div>
+      <div class="section-header"><h2>Errors</h2><button class="refresh" onclick="location.reload()">↻ Refresh</button></div>
       <div class="table-wrap">
         <table>
           <thead>
