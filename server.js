@@ -348,8 +348,9 @@ function adminHTML(orders, stats, visitors, errors, flightLeads, hotelLeads) {
       + '<td style="color:#16a34a;font-weight:700">$' + ((o.amount || 500) / 100).toFixed(2) + '</td>'
       + '<td>' + (o.email_sent ? '<span style="color:#16a34a">✓ Sent</span>' : '<span style="color:#ef4444">✗ Failed</span>') + '</td>'
       + '<td style="color:#64748b;font-size:12px">' + new Date(o.created_at).toLocaleString() + '</td>'
-      + '<td style="display:flex;gap:6px;align-items:center">'
+      + '<td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'
       + '<button onclick="resend(\'' + o.booking_ref + '\',\'' + (o.email||'') + '\',\'' + (o.passenger_name||'') + '\',\'' + (o.flight_route||'') + '\',\'' + (o.flight_date||'') + '\',\'' + (o.airline||'') + '\',\'' + (o.flight_num||'') + '\',\'' + (o.dep_time||'') + '\',\'' + (o.arr_time||'') + '\')" style="background:#2563eb;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">Resend</button>'
+      + '<button onclick="openMsg(\'' + (o.email||'') + '\',\'' + (o.passenger_name||'') + '\',\'' + o.booking_ref + '\')" style="background:#7c3aed;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">✉ Message</button>'
       + (o.ticket_token ? '<a href="https://flightstamp.com/?ticket=' + o.ticket_token + '" target="_blank" style="background:#16a34a;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px;text-decoration:none;white-space:nowrap">📄 View Ticket</a>' : '')
       + '</td>'
       + '</tr>';
@@ -680,7 +681,63 @@ function generateTicket() {
 
 clock(); setInterval(clock, 1000);
 setInterval(function(){ location.reload(); }, 60000);
+
+function openMsg(email, name, ref) {
+  document.getElementById('msg-to').textContent = name ? name + ' <' + email + '>' : email;
+  document.getElementById('msg-email').value = email;
+  document.getElementById('msg-ref').value = ref;
+  document.getElementById('msg-subject').value = 'Re: Your FlightStamp Booking - ' + ref;
+  document.getElementById('msg-body').value = '';
+  document.getElementById('msg-result').textContent = '';
+  document.getElementById('msg-modal').style.display = 'flex';
+}
+function closeMsg() {
+  document.getElementById('msg-modal').style.display = 'none';
+}
+function sendMsg() {
+  var email = document.getElementById('msg-email').value;
+  var subject = document.getElementById('msg-subject').value;
+  var body = document.getElementById('msg-body').value;
+  var ref = document.getElementById('msg-ref').value;
+  var result = document.getElementById('msg-result');
+  if(!body.trim()){ result.style.color='#ef4444'; result.textContent='Please write a message.'; return; }
+  result.style.color='#94a3b8'; result.textContent='Sending...';
+  fetch('/admin/message', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-Admin-Password':'myflightstamp@3252'},
+    body: JSON.stringify({ email: email, subject: subject, body: body, bookingRef: ref })
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if(d.success){ result.style.color='#22c55e'; result.textContent='✓ Message sent!'; setTimeout(closeMsg, 1500); }
+    else { result.style.color='#ef4444'; result.textContent='✗ Failed: ' + d.error; }
+  }).catch(function(){ result.style.color='#ef4444'; result.textContent='✗ Network error'; });
+}
 </script>
+
+<!-- Message Modal -->
+<div id="msg-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#1e293b;border:1px solid #334155;border-radius:16px;padding:32px;width:520px;max-width:95vw">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <h3 style="color:#fff;margin:0">✉ Send Message</h3>
+      <button onclick="closeMsg()" style="background:none;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button>
+    </div>
+    <div style="font-size:12px;color:#64748b;margin-bottom:16px">To: <span id="msg-to" style="color:#94a3b8"></span></div>
+    <input type="hidden" id="msg-email">
+    <input type="hidden" id="msg-ref">
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Subject</label>
+      <input id="msg-subject" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box">
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Message</label>
+      <textarea id="msg-body" rows="8" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none;resize:vertical;box-sizing:border-box;font-family:inherit"></textarea>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <button onclick="sendMsg()" style="background:#7c3aed;color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Send</button>
+      <button onclick="closeMsg()" style="background:#334155;color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:14px;cursor:pointer">Cancel</button>
+      <span id="msg-result" style="font-size:13px"></span>
+    </div>
+  </div>
+</div>
 </body>
 </html>`;
 }
@@ -1139,6 +1196,54 @@ const server = http.createServer(function(req, res) {
           if (err) res.end(JSON.stringify({ success: false, error: err.message }));
           else res.end(JSON.stringify({ success: true }));
         });
+      } catch(e) { res.end(JSON.stringify({ success: false, error: e.message })); }
+    });
+    return;
+  }
+
+  // ── Admin Send Custom Message ────────────────────────────────────
+  if (url.pathname === '/admin/message' && req.method === 'POST') {
+    res.setHeader('Content-Type', 'application/json');
+    if (req.headers['x-admin-password'] !== ADMIN_PASSWORD) {
+      res.writeHead(403); res.end(JSON.stringify({ success: false, error: 'Unauthorized' })); return;
+    }
+    var body = '';
+    req.on('data', function(c){ body += c; });
+    req.on('end', function() {
+      try {
+        var d = JSON.parse(body);
+        if (!d.email || !d.body) { res.end(JSON.stringify({ success: false, error: 'Missing email or message' })); return; }
+        var htmlContent = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif">'
+          + '<div style="max-width:600px;margin:30px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">'
+          + '<div style="background:linear-gradient(135deg,#1d4ed8,#2563eb);padding:24px 36px">'
+          + '<div style="color:#fff;font-size:22px;font-weight:700">✈ FlightStamp</div>'
+          + '</div>'
+          + '<div style="padding:32px 36px;font-size:14px;color:#334155;line-height:1.8;white-space:pre-wrap">' + d.body.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>'
+          + '<div style="padding:16px 36px;font-size:12px;color:#94a3b8;border-top:1px solid #e2e8f0;text-align:center">© 2026 FlightStamp · <a href="https://flightstamp.com" style="color:#64748b">flightstamp.com</a></div>'
+          + '</div></body></html>';
+        var emailData = JSON.stringify({
+          sender: { name: 'FlightStamp', email: 'bookings@flightstamp.com' },
+          to: [{ email: d.email }],
+          subject: d.subject || ('Re: Your FlightStamp Booking - ' + (d.bookingRef||'')),
+          htmlContent: htmlContent
+        });
+        var options = {
+          hostname: 'api.brevo.com',
+          path: '/v3/smtp/email',
+          method: 'POST',
+          headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(emailData) }
+        };
+        var req2 = https.request(options, function(res2) {
+          var raw = '';
+          res2.on('data', function(c){ raw += c; });
+          res2.on('end', function() {
+            if (res2.statusCode === 201) res.end(JSON.stringify({ success: true }));
+            else res.end(JSON.stringify({ success: false, error: 'Brevo error: ' + raw.substring(0,200) }));
+          });
+        });
+        req2.on('error', function(e){ res.end(JSON.stringify({ success: false, error: e.message })); });
+        req2.write(emailData);
+        req2.end();
       } catch(e) { res.end(JSON.stringify({ success: false, error: e.message })); }
     });
     return;
