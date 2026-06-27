@@ -9,6 +9,7 @@ const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY || '';
 const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || '';
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'myflightstamp@3252';
 
 function sendTelegram(message) {
   var body = JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: message, parse_mode: 'HTML' });
