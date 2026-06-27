@@ -683,7 +683,6 @@ clock(); setInterval(clock, 1000);
 setInterval(function(){ location.reload(); }, 60000);
 
 function openMsg(email, name, ref) {
-  document.getElementById('msg-to').textContent = name ? name + ' <' + email + '>' : email;
   document.getElementById('msg-email').value = email;
   document.getElementById('msg-ref').value = ref;
   document.getElementById('msg-subject').value = 'Re: Your FlightStamp Booking - ' + ref;
@@ -720,8 +719,7 @@ function sendMsg() {
       <h3 style="color:#fff;margin:0">✉ Send Message</h3>
       <button onclick="closeMsg()" style="background:none;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button>
     </div>
-    <div style="font-size:12px;color:#64748b;margin-bottom:16px">To: <span id="msg-to" style="color:#94a3b8"></span></div>
-    <input type="hidden" id="msg-email">
+    <div style="margin-bottom:12px"><label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">To (Email)</label><input id="msg-email" type="email" placeholder="customer@email.com" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box"></div>
     <input type="hidden" id="msg-ref">
     <div style="margin-bottom:12px">
       <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Subject</label>
