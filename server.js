@@ -1022,6 +1022,7 @@ const server = http.createServer(function(req, res) {
             pax: data.pax||1, total: data.total||'5.00',
             returnFlight: data.returnFlight||null,
             acode: data.acode||'',
+            acode: data.acode||'',
             legFlights: data.legFlights||null
           });
 
@@ -1168,14 +1169,14 @@ button:hover{background:#1d4ed8}</style></head>
 
     // Fetch data
     Promise.all([
-      pool.query('SELECT * FROM orders ORDER BY created_at DESC LIMIT 200'),
+      pool.query('SELECT * FROM orders WHERE booking_ref NOT LIKE 'FS-TEST-%' ORDER BY created_at DESC LIMIT 200'),
       pool.query(`SELECT
         SUM(amount) as total_revenue, COUNT(*) as total_orders,
         SUM(CASE WHEN created_at::date = CURRENT_DATE THEN amount ELSE 0 END) as today_revenue,
         COUNT(CASE WHEN created_at::date = CURRENT_DATE THEN 1 END) as today_orders,
         SUM(CASE WHEN created_at >= date_trunc('month', NOW()) THEN amount ELSE 0 END) as month_revenue,
         COUNT(CASE WHEN created_at >= date_trunc('month', NOW()) THEN 1 END) as month_orders
-        FROM orders`),
+        FROM orders WHERE booking_ref NOT LIKE 'FS-TEST-%'`),
       pool.query('SELECT COUNT(DISTINCT session_id) as online_now FROM visitors WHERE last_seen > NOW() - INTERVAL \'2 minutes\''),
       pool.query('SELECT COUNT(DISTINCT session_id) as visitors_today FROM visitors WHERE created_at::date = CURRENT_DATE'),
       pool.query('SELECT * FROM visitors ORDER BY last_seen DESC LIMIT 100'),
