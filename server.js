@@ -502,6 +502,7 @@ tr:hover td{background:#0f172a}
       <div class="tab" onclick="switchTab(this,'leads')">📧 Leads</div>
       <div class="tab" onclick="switchTab(this,'errors')">⚠️ Errors</div>
       <div class="tab" onclick="switchTab(this,'generate')">🎫 Generate</div>
+      <div class="tab" onclick="switchTab(this,'email')">📨 Send Email</div>
     </div>
 
     <div id="tab-orders" class="tab-content active">
@@ -626,10 +627,47 @@ tr:hover td{background:#0f172a}
         <div id="g-result" style="margin-top:16px;font-size:13px"></div>
       </div>
     </div>
+
+    <div id="tab-email" class="tab-content">
+      <div class="section-header"><h2>📨 Send Email</h2></div>
+      <div style="padding:24px;max-width:560px">
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">To (Email)</label>
+          <input id="se-email" type="email" placeholder="customer@email.com" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box">
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Subject</label>
+          <input id="se-subject" placeholder="Subject..." style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box">
+        </div>
+        <div style="margin-bottom:20px">
+          <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Message</label>
+          <textarea id="se-body" rows="10" placeholder="Type your message here..." style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none;resize:vertical;box-sizing:border-box;font-family:inherit"></textarea>
+        </div>
+        <button onclick="sendStandaloneEmail()" style="background:#7c3aed;color:#fff;border:none;padding:12px 24px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;width:100%">📨 Send Email</button>
+        <div id="se-result" style="margin-top:16px;font-size:13px"></div>
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
+function sendStandaloneEmail() {
+  var email = document.getElementById('se-email').value.trim();
+  var subject = document.getElementById('se-subject').value.trim();
+  var body = document.getElementById('se-body').value.trim();
+  var result = document.getElementById('se-result');
+  if(!email){ result.style.color='#ef4444'; result.textContent='Please enter an email address.'; return; }
+  if(!body){ result.style.color='#ef4444'; result.textContent='Please write a message.'; return; }
+  result.style.color='#94a3b8'; result.textContent='Sending...';
+  fetch('/admin/message', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-Admin-Password':'myflightstamp@3252'},
+    body: JSON.stringify({ email: email, subject: subject || 'Message from FlightStamp', body: body, bookingRef: '' })
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if(d.success){ result.style.color='#22c55e'; result.textContent='✓ Email sent successfully!'; document.getElementById('se-email').value=''; document.getElementById('se-subject').value=''; document.getElementById('se-body').value=''; }
+    else { result.style.color='#ef4444'; result.textContent='✗ Failed: ' + d.error; }
+  }).catch(function(){ result.style.color='#ef4444'; result.textContent='✗ Network error'; });
+}
 function switchTab(el, name) {
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});
   document.querySelectorAll('.tab-content').forEach(function(t){t.classList.remove('active')});
