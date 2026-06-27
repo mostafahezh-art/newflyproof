@@ -1022,6 +1022,7 @@ const server = http.createServer(function(req, res) {
             fc: data.fc||'', tc: data.tc||'', cl: data.cl||'Economy',
             pax: data.pax||1, total: data.total||'5.00',
             returnFlight: data.returnFlight||null,
+            acode: data.acode||'',
             legFlights: data.legFlights||null
           });
 
