@@ -1169,7 +1169,7 @@ button:hover{background:#1d4ed8}</style></head>
 
     // Fetch data
     Promise.all([
-      pool.query('SELECT * FROM orders WHERE booking_ref NOT LIKE 'FS-TEST-%' ORDER BY created_at DESC LIMIT 200'),
+      pool.query(`SELECT * FROM orders WHERE booking_ref NOT LIKE 'FS-TEST-%' ORDER BY created_at DESC LIMIT 200`),
       pool.query(`SELECT
         SUM(amount) as total_revenue, COUNT(*) as total_orders,
         SUM(CASE WHEN created_at::date = CURRENT_DATE THEN amount ELSE 0 END) as today_revenue,
