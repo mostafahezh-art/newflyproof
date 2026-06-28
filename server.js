@@ -118,12 +118,18 @@ async function initDB() {
       email VARCHAR(200),
       route VARCHAR(200),
       date VARCHAR(20),
+      return_date VARCHAR(20),
       ttype VARCHAR(50),
       ip VARCHAR(50),
       country VARCHAR(100),
+      device VARCHAR(20),
+      referrer VARCHAR(500),
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  await pool.query(`ALTER TABLE flight_leads ADD COLUMN IF NOT EXISTS return_date VARCHAR(20)`);
+  await pool.query(`ALTER TABLE flight_leads ADD COLUMN IF NOT EXISTS device VARCHAR(20)`);
+  await pool.query(`ALTER TABLE flight_leads ADD COLUMN IF NOT EXISTS referrer VARCHAR(500)`);
   console.log('Database ready');
 }
 
@@ -348,11 +354,9 @@ function adminHTML(orders, stats, visitors, errors, flightLeads, hotelLeads) {
       + '<td style="color:#16a34a;font-weight:700">$' + ((o.amount || 500) / 100).toFixed(2) + '</td>'
       + '<td>' + (o.email_sent ? '<span style="color:#16a34a">✓ Sent</span>' : '<span style="color:#ef4444">✗ Failed</span>') + '</td>'
       + '<td style="color:#64748b;font-size:12px">' + new Date(o.created_at).toLocaleString() + '</td>'
-      + '<td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'
+      + '<td style="display:flex;gap:6px;align-items:center">'
       + '<button onclick="resend(\'' + o.booking_ref + '\',\'' + (o.email||'') + '\',\'' + (o.passenger_name||'') + '\',\'' + (o.flight_route||'') + '\',\'' + (o.flight_date||'') + '\',\'' + (o.airline||'') + '\',\'' + (o.flight_num||'') + '\',\'' + (o.dep_time||'') + '\',\'' + (o.arr_time||'') + '\')" style="background:#2563eb;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">Resend</button>'
-      + '<button onclick="openMsg(\'' + (o.email||'') + '\',\'' + (o.passenger_name||'') + '\',\'' + o.booking_ref + '\')" style="background:#7c3aed;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">✉ Message</button>'
       + (o.ticket_token ? '<a href="https://flightstamp.com/?ticket=' + o.ticket_token + '" target="_blank" style="background:#16a34a;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px;text-decoration:none;white-space:nowrap">📄 View Ticket</a>' : '')
-      + '<button onclick="deleteRow(this,\'orders\',\'id\',' + o.id + ')" style="background:#ef4444;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">🗑</button>'
       + '</td>'
       + '</tr>';
   }).join('');
@@ -378,7 +382,6 @@ function adminHTML(orders, stats, visitors, errors, flightLeads, hotelLeads) {
       + '<td>' + durStr + '</td>'
       + '<td>' + agoStr + '</td>'
       + '<td>' + (isOnline ? '<span style="color:#16a34a;font-weight:700">● Online</span>' : '<span style="color:#94a3b8">Offline</span>') + '</td>'
-      + '<td><button onclick="deleteRow(this,\'visitors\',\'id\',' + v.id + ')" style="background:#ef4444;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">🗑</button></td>'
       + '</tr>';
   }).join('');
 
@@ -389,19 +392,23 @@ function adminHTML(orders, stats, visitors, errors, flightLeads, hotelLeads) {
       + '<td style="color:#ef4444;font-size:13px">' + (e.message||'') + '</td>'
       + '<td>' + (e.country||'Unknown') + '</td>'
       + '<td style="color:#64748b;font-size:12px">' + (e.session_id||'').substring(0,8) + '...</td>'
-      + '<td><button onclick="deleteRow(this,\'errors\',\'id\',' + e.id + ')" style="background:#ef4444;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">🗑</button></td>'
       + '</tr>';
   }).join('');
 
   var flightLeadRows = (flightLeads||[]).map(function(l) {
+    var deviceIcon = l.device === 'Mobile' ? '📱' : l.device === 'Tablet' ? '📟' : '🖥';
+    var dates = l.ttype === 'Round Trip' && l.return_date ? (l.date||'—') + ' → ' + l.return_date : (l.date||'—');
+    var ref = (l.referrer || 'Direct').replace(/^https?:\/\/(www\.)?/,'').split('/')[0].substring(0,20);
     return '<tr>'
       + '<td style="font-weight:600">' + (l.name||'—') + '</td>'
-      + '<td><a href="mailto:' + (l.email||'') + '" style="color:#60a5fa">' + (l.email||'—') + '</a></td>'
+      + '<td><a href="mailto:' + (l.email||'') + '" style="color:var(--blue)">' + (l.email||'—') + '</a></td>'
       + '<td>' + (l.route||'—') + '</td>'
-      + '<td>' + (l.date||'—') + '</td>'
-      + '<td><span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">' + (l.ttype||'—') + '</span></td>'
+      + '<td style="font-size:12px">' + dates + '</td>'
+      + '<td><span style="background:var(--blue-mid);color:var(--blue-dark);padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">' + (l.ttype||'—') + '</span></td>'
       + '<td>' + (l.country||'Unknown') + '</td>'
-      + '<td style="font-size:12px;color:#64748b">' + new Date(l.created_at).toLocaleString() + '</td>'
+      + '<td style="font-size:12px">' + deviceIcon + ' ' + (l.device||'Desktop') + '</td>'
+      + '<td style="font-size:12px;color:var(--txt3)">' + ref + '</td>'
+      + '<td style="font-size:12px;color:var(--txt3)">' + new Date(l.created_at).toLocaleString() + '</td>'
       + '<td><button onclick="deleteRow(this,\'flight_leads\',\'id\',' + l.id + ')" style="background:#ef4444;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">🗑</button></td>'
       + '</tr>';
   }).join('');
@@ -416,7 +423,6 @@ function adminHTML(orders, stats, visitors, errors, flightLeads, hotelLeads) {
       + '<td>' + (l.guests||1) + '</td>'
       + '<td>' + (l.country||'Unknown') + '</td>'
       + '<td style="font-size:12px;color:#64748b">' + new Date(l.created_at).toLocaleString() + '</td>'
-      + '<td><button onclick="deleteRow(this,\'hotel_leads\',\'id\',' + l.id + ')" style="background:#ef4444;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">🗑</button></td>'
       + '</tr>';
   }).join('');
 
@@ -426,52 +432,39 @@ function adminHTML(orders, stats, visitors, errors, flightLeads, hotelLeads) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>FlightStamp Admin</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --blue:#2563eb;--blue-dark:#1d4ed8;--blue-light:#eff6ff;--blue-mid:#dbeafe;
-  --txt:#0f172a;--txt2:#475569;--txt3:#94a3b8;
-  --border:#e2e8f0;--bg:#f8fafc;--white:#ffffff;
-  --green:#16a34a;--red:#ef4444;--purple:#7c3aed;
-}
-body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh}
-.topbar{background:linear-gradient(135deg,var(--blue-dark),var(--blue));padding:16px 32px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 12px rgba(37,99,235,.15)}
-.topbar h1{font-size:20px;font-weight:800;color:#fff;letter-spacing:-.3px}
-.topbar span{font-size:13px;color:rgba(255,255,255,.75);font-weight:500}
-.content{padding:28px 32px;max-width:1500px;margin:0 auto}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px;margin-bottom:28px}
-.stat{background:var(--white);border-radius:14px;padding:20px 24px;border:1.5px solid var(--border);box-shadow:0 1px 4px rgba(0,0,0,.05);transition:box-shadow .2s}
-.stat:hover{box-shadow:0 4px 16px rgba(37,99,235,.08)}
-.stat .label{font-size:11px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px}
-.stat .value{font-size:30px;font-weight:800;color:var(--txt)}
-.stat .value.green{color:var(--green)}
-.stat .value.blue{color:var(--blue)}
-.stat .sub{font-size:12px;color:var(--txt3);margin-top:4px;font-weight:500}
-.online-dot{width:9px;height:9px;background:#22c55e;border-radius:50%;display:inline-block;margin-right:5px;animation:pulse 2s infinite}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+.topbar{background:linear-gradient(135deg,#1d4ed8,#2563eb);padding:16px 32px;display:flex;align-items:center;justify-content:space-between}
+.topbar h1{font-size:20px;font-weight:700;color:#fff}
+.topbar span{font-size:13px;color:rgba(255,255,255,.7)}
+.content{padding:28px 32px;max-width:1400px;margin:0 auto}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:28px}
+.stat{background:#1e293b;border-radius:12px;padding:20px 24px;border:1px solid #334155}
+.stat .label{font-size:12px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.stat .value{font-size:32px;font-weight:800;color:#fff}
+.stat .sub{font-size:12px;color:#64748b;margin-top:4px}
+.online-dot{width:10px;height:10px;background:#22c55e;border-radius:50%;display:inline-block;margin-right:6px;animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.section{background:var(--white);border-radius:14px;border:1.5px solid var(--border);margin-bottom:24px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.04)}
-.section-header{padding:16px 24px;border-bottom:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--white)}
-.section-header h2{font-size:15px;font-weight:700;color:var(--txt)}
-.search-bar{padding:12px 24px;border-bottom:1.5px solid var(--border);background:var(--bg)}
-.search-bar input{background:var(--white);border:1.5px solid var(--border);color:var(--txt);padding:8px 14px;border-radius:8px;font-size:13px;width:320px;outline:none;font-family:inherit}
-.search-bar input:focus{border-color:var(--blue)}
+.section{background:#1e293b;border-radius:12px;border:1px solid #334155;margin-bottom:24px;overflow:hidden}
+.section-header{padding:16px 24px;border-bottom:1px solid #334155;display:flex;align-items:center;justify-content:space-between}
+.section-header h2{font-size:15px;font-weight:600;color:#f1f5f9}
+.search-bar{padding:12px 24px;border-bottom:1px solid #334155;background:#0f172a}
+.search-bar input{background:#1e293b;border:1px solid #334155;color:#e2e8f0;padding:8px 14px;border-radius:8px;font-size:13px;width:300px;outline:none}
+.search-bar input:focus{border-color:#2563eb}
 .table-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th{background:var(--bg);color:var(--txt3);font-weight:700;text-transform:uppercase;font-size:11px;letter-spacing:.06em;padding:10px 16px;text-align:left;white-space:nowrap;border-bottom:1.5px solid var(--border)}
-td{padding:12px 16px;border-bottom:1px solid var(--border);color:var(--txt2);white-space:nowrap;font-weight:500}
-tr:last-child td{border-bottom:none}
-tr:hover td{background:var(--blue-light)}
-.empty{text-align:center;padding:48px;color:var(--txt3);font-weight:500}
-.refresh{background:var(--white);border:1.5px solid var(--border);color:var(--txt2);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;transition:all .15s}
-.refresh:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-light)}
-.tabs{display:flex;gap:0;padding:0 8px;background:var(--white);border-bottom:1.5px solid var(--border)}
-.tab{padding:14px 20px;font-size:13px;font-weight:600;color:var(--txt3);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;margin-bottom:-1.5px}
-.tab:hover{color:var(--txt2)}
-.tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+th{background:#0f172a;color:#94a3b8;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.05em;padding:10px 16px;text-align:left;white-space:nowrap}
+td{padding:12px 16px;border-bottom:1px solid #1e293b;color:#cbd5e1;white-space:nowrap}
+tr:hover td{background:#0f172a}
+.empty{text-align:center;padding:48px;color:#475569}
+.refresh{background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:12px}
+.refresh:hover{border-color:#2563eb;color:#93c5fd}
+.tabs{display:flex;gap:2px;padding:0 24px;background:#0f172a;border-bottom:1px solid #334155}
+.tab{padding:12px 20px;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
+.tab.active{color:#2563eb;border-bottom-color:#2563eb}
 .tab-content{display:none}
 .tab-content.active{display:block}
-input,textarea,select{font-family:'Plus Jakarta Sans',sans-serif}
 </style>
 </head>
 <body>
@@ -483,32 +476,32 @@ input,textarea,select{font-family:'Plus Jakarta Sans',sans-serif}
   <div class="stats">
     <div class="stat">
       <div class="label">Total Revenue</div>
-      <div class="value" style="color:var(--green)">$${((stats.total_revenue || 0)/100).toFixed(2)}</div>
+      <div class="value" style="color:#22c55e">$${((stats.total_revenue || 0)/100).toFixed(2)}</div>
       <div class="sub">All time</div>
     </div>
     <div class="stat">
       <div class="label">Total Orders</div>
-      <div class="value" style="color:var(--txt)">${stats.total_orders || 0}</div>
+      <div class="value">${stats.total_orders || 0}</div>
       <div class="sub">Completed bookings</div>
     </div>
     <div class="stat">
       <div class="label">Today's Revenue</div>
-      <div class="value" style="color:var(--blue)">$${((stats.today_revenue || 0)/100).toFixed(2)}</div>
+      <div class="value" style="color:#60a5fa">$${((stats.today_revenue || 0)/100).toFixed(2)}</div>
       <div class="sub">${stats.today_orders || 0} orders today</div>
     </div>
     <div class="stat">
       <div class="label">This Month</div>
-      <div class="value" style="color:var(--blue)">$${((stats.month_revenue || 0)/100).toFixed(2)}</div>
+      <div class="value" style="color:#a78bfa">$${((stats.month_revenue || 0)/100).toFixed(2)}</div>
       <div class="sub">${stats.month_orders || 0} orders</div>
     </div>
     <div class="stat">
       <div class="label"><span class="online-dot"></span>Online Now</div>
-      <div class="value" style="color:var(--green)">${stats.online_now || 0}</div>
+      <div class="value" style="color:#22c55e">${stats.online_now || 0}</div>
       <div class="sub">Last 2 minutes</div>
     </div>
     <div class="stat">
       <div class="label">Visitors Today</div>
-      <div class="value" style="color:var(--txt)">${stats.visitors_today || 0}</div>
+      <div class="value">${stats.visitors_today || 0}</div>
       <div class="sub">Unique sessions</div>
     </div>
   </div>
@@ -520,7 +513,6 @@ input,textarea,select{font-family:'Plus Jakarta Sans',sans-serif}
       <div class="tab" onclick="switchTab(this,'leads')">📧 Leads</div>
       <div class="tab" onclick="switchTab(this,'errors')">⚠️ Errors</div>
       <div class="tab" onclick="switchTab(this,'generate')">🎫 Generate</div>
-      <div class="tab" onclick="switchTab(this,'email')">📨 Send Email</div>
     </div>
 
     <div id="tab-orders" class="tab-content active">
@@ -568,10 +560,10 @@ input,textarea,select{font-family:'Plus Jakarta Sans',sans-serif}
       <div class="table-wrap" style="margin-bottom:32px">
         <table>
           <thead>
-            <tr><th>Name</th><th>Email</th><th>Route</th><th>Date</th><th>Type</th><th>Country</th><th>Time</th></tr>
+            <tr><th>Name</th><th>Email</th><th>Route</th><th>Date(s)</th><th>Type</th><th>Country</th><th>Device</th><th>Source</th><th>Time</th><th></th></tr>
           </thead>
           <tbody>
-            ${flightLeadRows || '<tr><td colspan="7" class="empty">No flight leads yet</td></tr>'}
+            ${flightLeadRows || '<tr><td colspan="10" class="empty">No flight leads yet</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -591,7 +583,8 @@ input,textarea,select{font-family:'Plus Jakarta Sans',sans-serif}
     </div>
 
     <div id="tab-errors" class="tab-content">
-      <div class="section-header"><h2>Errors</h2><div style="display:flex;gap:8px"><button class="refresh" onclick="location.reload()">↻ Refresh</button><button onclick="clearAllErrors()" style="background:#ef4444;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🗑 Clear All</button></div></div>
+        <button class="refresh" onclick="location.reload()">↻ Refresh</button>
+      </div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -609,105 +602,46 @@ input,textarea,select{font-family:'Plus Jakarta Sans',sans-serif}
       <div style="padding:24px;max-width:500px">
         <div style="margin-bottom:12px">
           <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Passenger Name</label>
-          <input id="g-name" placeholder="John Smith" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+          <input id="g-name" placeholder="John Smith" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
         </div>
         <div style="margin-bottom:12px">
           <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Email (optional)</label>
-          <input id="g-email" placeholder="passenger@email.com" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+          <input id="g-email" placeholder="passenger@email.com" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
         </div>
         <div style="margin-bottom:12px">
           <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Flight Route (e.g. CAI-DXB)</label>
-          <input id="g-route" placeholder="CAI-DXB" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+          <input id="g-route" placeholder="CAI-DXB" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
         </div>
         <div style="margin-bottom:12px">
           <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Flight Date</label>
-          <input id="g-date" type="date" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+          <input id="g-date" type="date" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
         </div>
         <div style="margin-bottom:12px">
           <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Airline</label>
-          <input id="g-airline" placeholder="Emirates" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+          <input id="g-airline" placeholder="Emirates" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
         </div>
         <div style="margin-bottom:12px">
           <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Flight Number</label>
-          <input id="g-flightnum" placeholder="EK123" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+          <input id="g-flightnum" placeholder="EK123" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
           <div>
             <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Departure Time</label>
-            <input id="g-dep" placeholder="09:00" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+            <input id="g-dep" placeholder="09:00" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
           </div>
           <div>
             <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Arrival Time</label>
-            <input id="g-arr" placeholder="13:00" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
+            <input id="g-arr" placeholder="13:00" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:14px;outline:none">
           </div>
         </div>
         <button onclick="generateTicket()" style="background:#2563eb;color:#fff;border:none;padding:12px 24px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;width:100%">✈ Generate Ticket</button>
         <div id="g-result" style="margin-top:16px;font-size:13px"></div>
       </div>
     </div>
-
-    <div id="tab-email" class="tab-content">
-      <div class="section-header"><h2>📨 Send Email</h2></div>
-      <div style="padding:24px;max-width:560px">
-        <div style="margin-bottom:12px">
-          <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">To (Email)</label>
-          <input id="se-email" type="email" placeholder="customer@email.com" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box">
-        </div>
-        <div style="margin-bottom:12px">
-          <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Subject</label>
-          <input id="se-subject" placeholder="Subject..." style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box">
-        </div>
-        <div style="margin-bottom:20px">
-          <label style="display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Message</label>
-          <textarea id="se-body" rows="10" placeholder="Type your message here..." style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none;resize:vertical;box-sizing:border-box;font-family:inherit"></textarea>
-        </div>
-        <button onclick="sendStandaloneEmail()" style="background:#7c3aed;color:#fff;border:none;padding:12px 24px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;width:100%">📨 Send Email</button>
-        <div id="se-result" style="margin-top:16px;font-size:13px"></div>
-      </div>
-    </div>
   </div>
 </div>
 
 <script>
-function clearAllErrors() {
-  if(!confirm('Delete ALL errors permanently?')) return;
-  fetch('/admin/clear-errors', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','X-Admin-Password':'myflightstamp@3252'}
-  }).then(function(r){ return r.json(); }).then(function(d){
-    if(d.success){ location.reload(); }
-    else { alert('Failed: ' + d.error); }
-  }).catch(function(){ alert('Network error'); });
-}
-function deleteRow(btn, table, col, id) {
-  if(!confirm('Delete this record permanently?')) return;
-  var row = btn.closest('tr');
-  fetch('/admin/delete', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','X-Admin-Password':'myflightstamp@3252'},
-    body: JSON.stringify({ table: table, col: col, id: id })
-  }).then(function(r){ return r.json(); }).then(function(d){
-    if(d.success){ row.style.opacity='0'; setTimeout(function(){ row.remove(); }, 300); }
-    else { alert('Delete failed: ' + d.error); }
-  }).catch(function(){ alert('Network error'); });
-}
-function sendStandaloneEmail() {
-  var email = document.getElementById('se-email').value.trim();
-  var subject = document.getElementById('se-subject').value.trim();
-  var body = document.getElementById('se-body').value.trim();
-  var result = document.getElementById('se-result');
-  if(!email){ result.style.color='#ef4444'; result.textContent='Please enter an email address.'; return; }
-  if(!body){ result.style.color='#ef4444'; result.textContent='Please write a message.'; return; }
-  result.style.color='#94a3b8'; result.textContent='Sending...';
-  fetch('/admin/message', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','X-Admin-Password':'myflightstamp@3252'},
-    body: JSON.stringify({ email: email, subject: subject || 'Message from FlightStamp', body: body, bookingRef: '' })
-  }).then(function(r){ return r.json(); }).then(function(d){
-    if(d.success){ result.style.color='#22c55e'; result.textContent='✓ Email sent successfully!'; document.getElementById('se-email').value=''; document.getElementById('se-subject').value=''; document.getElementById('se-body').value=''; }
-    else { result.style.color='#ef4444'; result.textContent='✗ Failed: ' + d.error; }
-  }).catch(function(){ result.style.color='#ef4444'; result.textContent='✗ Network error'; });
-}
 function switchTab(el, name) {
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});
   document.querySelectorAll('.tab-content').forEach(function(t){t.classList.remove('active')});
@@ -748,7 +682,7 @@ function generateTicket() {
     })
   }).then(function(r){return r.json()}).then(function(d){
     if(d.success){
-      result.innerHTML = '<span style="color:var(--green)">✓ Ticket generated!</span> Booking Ref: <strong style="color:var(--txt)">' + d.bookingRef + '</strong>';
+      result.innerHTML = '<span style="color:#22c55e">✓ Ticket generated!</span> Booking Ref: <strong style="color:#fff">' + d.bookingRef + '</strong>';
     } else {
       result.innerHTML = '<span style="color:#ef4444">✗ Failed: ' + d.error + '</span>';
     }
@@ -759,61 +693,7 @@ function generateTicket() {
 
 clock(); setInterval(clock, 1000);
 setInterval(function(){ location.reload(); }, 60000);
-
-function openMsg(email, name, ref) {
-  document.getElementById('msg-email').value = email;
-  document.getElementById('msg-ref').value = ref;
-  document.getElementById('msg-subject').value = 'Re: Your FlightStamp Booking - ' + ref;
-  document.getElementById('msg-body').value = '';
-  document.getElementById('msg-result').textContent = '';
-  document.getElementById('msg-modal').style.display = 'flex';
-}
-function closeMsg() {
-  document.getElementById('msg-modal').style.display = 'none';
-}
-function sendMsg() {
-  var email = document.getElementById('msg-email').value;
-  var subject = document.getElementById('msg-subject').value;
-  var body = document.getElementById('msg-body').value;
-  var ref = document.getElementById('msg-ref').value;
-  var result = document.getElementById('msg-result');
-  if(!body.trim()){ result.style.color='#ef4444'; result.textContent='Please write a message.'; return; }
-  result.style.color='#94a3b8'; result.textContent='Sending...';
-  fetch('/admin/message', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','X-Admin-Password':'myflightstamp@3252'},
-    body: JSON.stringify({ email: email, subject: subject, body: body, bookingRef: ref })
-  }).then(function(r){ return r.json(); }).then(function(d){
-    if(d.success){ result.style.color='#22c55e'; result.textContent='✓ Message sent!'; setTimeout(closeMsg, 1500); }
-    else { result.style.color='#ef4444'; result.textContent='✗ Failed: ' + d.error; }
-  }).catch(function(){ result.style.color='#ef4444'; result.textContent='✗ Network error'; });
-}
 </script>
-
-<!-- Message Modal -->
-<div id="msg-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:9999;align-items:center;justify-content:center;backdrop-filter:blur(4px)">
-  <div style="background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:32px;width:520px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.15)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-      <h3 style="color:var(--txt);margin:0;font-size:17px;font-weight:700">✉ Send Message</h3>
-      <button onclick="closeMsg()" style="background:none;border:none;color:var(--txt3);font-size:20px;cursor:pointer;line-height:1">✕</button>
-    </div>
-    <input type="hidden" id="msg-ref">
-    <div style="margin-bottom:12px"><label style="display:block;font-size:12px;font-weight:700;color:var(--txt3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">To (Email)</label><input id="msg-email" type="email" placeholder="customer@email.com" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box;font-family:inherit"></div>
-    <div style="margin-bottom:12px">
-      <label style="display:block;font-size:12px;font-weight:700;color:var(--txt3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Subject</label>
-      <input id="msg-subject" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box;font-family:inherit">
-    </div>
-    <div style="margin-bottom:20px">
-      <label style="display:block;font-size:12px;font-weight:700;color:var(--txt3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Message</label>
-      <textarea id="msg-body" rows="8" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:10px 14px;border-radius:8px;font-size:14px;outline:none;resize:vertical;box-sizing:border-box;font-family:inherit"></textarea>
-    </div>
-    <div style="display:flex;gap:10px;align-items:center">
-      <button onclick="sendMsg()" style="background:var(--purple);color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Send</button>
-      <button onclick="closeMsg()" style="background:var(--bg);color:var(--txt2);border:1.5px solid var(--border);padding:10px 24px;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;font-family:inherit">Cancel</button>
-      <span id="msg-result" style="font-size:13px"></span>
-    </div>
-  </div>
-</div>
 </body>
 </html>`;
 }
@@ -1060,14 +940,17 @@ const server = http.createServer(function(req, res) {
         var ip = getIP(req);
         var country = req.headers['cf-ipcountry'] || 'Unknown';
         pool.query(
-          'INSERT INTO flight_leads (name, email, route, date, ttype, ip, country) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+          'INSERT INTO flight_leads (name, email, route, date, return_date, ttype, ip, country, device, referrer) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
           [
             (d.name||'').substring(0,200),
             (d.email||'').substring(0,200),
             (d.route||'').substring(0,200),
             (d.date||'').substring(0,20),
+            (d.return_date||'').substring(0,20),
             (d.ttype||'').substring(0,50),
-            ip, country
+            ip, country,
+            (d.device||'').substring(0,20),
+            (d.referrer||'').substring(0,500)
           ]
         ).catch(function(){});
         sendTelegram('✈️ <b>New Flight Lead</b>\n👤 ' + (d.name||'Unknown') + '\n📧 ' + (d.email||'') + '\n🛫 ' + (d.route||'') + '\n📅 ' + (d.date||'') + '\n🌍 ' + country);
@@ -1154,7 +1037,6 @@ const server = http.createServer(function(req, res) {
             fc: data.fc||'', tc: data.tc||'', cl: data.cl||'Economy',
             pax: data.pax||1, total: data.total||'5.00',
             returnFlight: data.returnFlight||null,
-            acode: data.acode||'',
             acode: data.acode||'',
             legFlights: data.legFlights||null
           });
@@ -1277,88 +1159,6 @@ const server = http.createServer(function(req, res) {
     return;
   }
 
-  // ── Admin Clear All Errors ───────────────────────────────────────
-  if (url.pathname === '/admin/clear-errors' && req.method === 'POST') {
-    res.setHeader('Content-Type', 'application/json');
-    if (req.headers['x-admin-password'] !== ADMIN_PASSWORD) {
-      res.writeHead(403); res.end(JSON.stringify({ success: false, error: 'Unauthorized' })); return;
-    }
-    pool.query('DELETE FROM errors')
-      .then(function(){ res.end(JSON.stringify({ success: true })); })
-      .catch(function(e){ res.end(JSON.stringify({ success: false, error: e.message })); });
-    return;
-  }
-
-  // ── Admin Delete Record ──────────────────────────────────────────
-  if (url.pathname === '/admin/delete' && req.method === 'POST') {
-    res.setHeader('Content-Type', 'application/json');
-    if (req.headers['x-admin-password'] !== ADMIN_PASSWORD) {
-      res.writeHead(403); res.end(JSON.stringify({ success: false, error: 'Unauthorized' })); return;
-    }
-    var body = '';
-    req.on('data', function(c){ body += c; });
-    req.on('end', function() {
-      try {
-        var d = JSON.parse(body);
-        var allowed = ['orders', 'visitors', 'errors', 'flight_leads', 'hotel_leads'];
-        if (!allowed.includes(d.table)) { res.end(JSON.stringify({ success: false, error: 'Invalid table' })); return; }
-        if (!d.id || isNaN(parseInt(d.id))) { res.end(JSON.stringify({ success: false, error: 'Invalid id' })); return; }
-        pool.query('DELETE FROM ' + d.table + ' WHERE id=$1', [parseInt(d.id)])
-          .then(function(){ res.end(JSON.stringify({ success: true })); })
-          .catch(function(e){ res.end(JSON.stringify({ success: false, error: e.message })); });
-      } catch(e) { res.end(JSON.stringify({ success: false, error: e.message })); }
-    });
-    return;
-  }
-
-  // ── Admin Send Custom Message ────────────────────────────────────
-  if (url.pathname === '/admin/message' && req.method === 'POST') {
-    res.setHeader('Content-Type', 'application/json');
-    if (req.headers['x-admin-password'] !== ADMIN_PASSWORD) {
-      res.writeHead(403); res.end(JSON.stringify({ success: false, error: 'Unauthorized' })); return;
-    }
-    var body = '';
-    req.on('data', function(c){ body += c; });
-    req.on('end', function() {
-      try {
-        var d = JSON.parse(body);
-        if (!d.email || !d.body) { res.end(JSON.stringify({ success: false, error: 'Missing email or message' })); return; }
-        var htmlContent = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif">'
-          + '<div style="max-width:600px;margin:30px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">'
-          + '<div style="background:linear-gradient(135deg,#1d4ed8,#2563eb);padding:24px 36px">'
-          + '<div style="color:#fff;font-size:22px;font-weight:700">✈ FlightStamp</div>'
-          + '</div>'
-          + '<div style="padding:32px 36px;font-size:14px;color:#334155;line-height:1.8;white-space:pre-wrap">' + d.body.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>'
-          + '<div style="padding:16px 36px;font-size:12px;color:#94a3b8;border-top:1px solid #e2e8f0;text-align:center">© 2026 FlightStamp · <a href="https://flightstamp.com" style="color:#64748b">flightstamp.com</a></div>'
-          + '</div></body></html>';
-        var emailData = JSON.stringify({
-          sender: { name: 'FlightStamp', email: 'bookings@flightstamp.com' },
-          to: [{ email: d.email }],
-          subject: d.subject || ('Re: Your FlightStamp Booking - ' + (d.bookingRef||'')),
-          htmlContent: htmlContent
-        });
-        var options = {
-          hostname: 'api.brevo.com',
-          path: '/v3/smtp/email',
-          method: 'POST',
-          headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(emailData) }
-        };
-        var req2 = https.request(options, function(res2) {
-          var raw = '';
-          res2.on('data', function(c){ raw += c; });
-          res2.on('end', function() {
-            if (res2.statusCode === 201) res.end(JSON.stringify({ success: true }));
-            else res.end(JSON.stringify({ success: false, error: 'Brevo error: ' + raw.substring(0,200) }));
-          });
-        });
-        req2.on('error', function(e){ res.end(JSON.stringify({ success: false, error: e.message })); });
-        req2.write(emailData);
-        req2.end();
-      } catch(e) { res.end(JSON.stringify({ success: false, error: e.message })); }
-    });
-    return;
-  }
-
   // ── Admin Dashboard ───────────────────────────────────────────────
   if (url.pathname === '/admin') {
     var pw = url.searchParams.get('pw') || '';
@@ -1368,7 +1168,7 @@ const server = http.createServer(function(req, res) {
 <style>*{box-sizing:border-box}body{background:#0f172a;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:-apple-system,sans-serif}
 .box{background:#1e293b;border:1px solid #334155;border-radius:16px;padding:40px;width:360px;text-align:center}
 h2{color:#fff;margin-bottom:8px}p{color:#64748b;font-size:14px;margin-bottom:24px}
-input{width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--txt);padding:12px 16px;border-radius:10px;font-size:14px;outline:none;margin-bottom:16px}
+input{width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:12px 16px;border-radius:10px;font-size:14px;outline:none;margin-bottom:16px}
 input:focus{border-color:#2563eb}
 button{width:100%;background:#2563eb;color:#fff;border:none;padding:12px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer}
 button:hover{background:#1d4ed8}</style></head>
@@ -1384,14 +1184,14 @@ button:hover{background:#1d4ed8}</style></head>
 
     // Fetch data
     Promise.all([
-      pool.query(`SELECT * FROM orders WHERE booking_ref NOT LIKE 'FS-TEST-%' ORDER BY created_at DESC LIMIT 200`),
+      pool.query('SELECT * FROM orders ORDER BY created_at DESC LIMIT 200'),
       pool.query(`SELECT
         SUM(amount) as total_revenue, COUNT(*) as total_orders,
         SUM(CASE WHEN created_at::date = CURRENT_DATE THEN amount ELSE 0 END) as today_revenue,
         COUNT(CASE WHEN created_at::date = CURRENT_DATE THEN 1 END) as today_orders,
         SUM(CASE WHEN created_at >= date_trunc('month', NOW()) THEN amount ELSE 0 END) as month_revenue,
         COUNT(CASE WHEN created_at >= date_trunc('month', NOW()) THEN 1 END) as month_orders
-        FROM orders WHERE booking_ref NOT LIKE 'FS-TEST-%'`),
+        FROM orders`),
       pool.query('SELECT COUNT(DISTINCT session_id) as online_now FROM visitors WHERE last_seen > NOW() - INTERVAL \'2 minutes\''),
       pool.query('SELECT COUNT(DISTINCT session_id) as visitors_today FROM visitors WHERE created_at::date = CURRENT_DATE'),
       pool.query('SELECT * FROM visitors ORDER BY last_seen DESC LIMIT 100'),
