@@ -118,18 +118,12 @@ async function initDB() {
       email VARCHAR(200),
       route VARCHAR(200),
       date VARCHAR(20),
-      return_date VARCHAR(20),
       ttype VARCHAR(50),
       ip VARCHAR(50),
       country VARCHAR(100),
-      device VARCHAR(20),
-      referrer VARCHAR(500),
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
-  await pool.query(`ALTER TABLE flight_leads ADD COLUMN IF NOT EXISTS return_date VARCHAR(20)`);
-  await pool.query(`ALTER TABLE flight_leads ADD COLUMN IF NOT EXISTS device VARCHAR(20)`);
-  await pool.query(`ALTER TABLE flight_leads ADD COLUMN IF NOT EXISTS referrer VARCHAR(500)`);
   console.log('Database ready');
 }
 
@@ -338,6 +332,23 @@ function getIP(req) {
   return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '';
 }
 
+function getCountry(req, ip, callback) {
+  var cf = req.headers['cf-ipcountry'];
+  if (cf && cf !== 'XX') { callback(cf); return; }
+  if (!ip || ip === '127.0.0.1' || ip.startsWith('::')) { callback('Unknown'); return; }
+  var opts = { hostname: 'ip-api.com', path: '/json/' + ip + '?fields=countryCode', method: 'GET' };
+  var r = require('http').request(opts, function(res) {
+    var raw = '';
+    res.on('data', function(c){ raw += c; });
+    res.on('end', function() {
+      try { var d = JSON.parse(raw); callback(d.countryCode || 'Unknown'); }
+      catch(e) { callback('Unknown'); }
+    });
+  });
+  r.on('error', function(){ callback('Unknown'); });
+  r.end();
+}
+
 // ── Admin Dashboard HTML ──────────────────────────────────────────
 function adminHTML(orders, stats, visitors, errors, flightLeads, hotelLeads) {
   flightLeads = flightLeads || [];
@@ -396,20 +407,14 @@ function adminHTML(orders, stats, visitors, errors, flightLeads, hotelLeads) {
   }).join('');
 
   var flightLeadRows = (flightLeads||[]).map(function(l) {
-    var deviceIcon = l.device === 'Mobile' ? '📱' : l.device === 'Tablet' ? '📟' : '🖥';
-    var dates = l.ttype === 'Round Trip' && l.return_date ? (l.date||'—') + ' → ' + l.return_date : (l.date||'—');
-    var ref = (l.referrer || 'Direct').replace(/^https?:\/\/(www\.)?/,'').split('/')[0].substring(0,20);
     return '<tr>'
       + '<td style="font-weight:600">' + (l.name||'—') + '</td>'
-      + '<td><a href="mailto:' + (l.email||'') + '" style="color:var(--blue)">' + (l.email||'—') + '</a></td>'
+      + '<td><a href="mailto:' + (l.email||'') + '" style="color:#60a5fa">' + (l.email||'—') + '</a></td>'
       + '<td>' + (l.route||'—') + '</td>'
-      + '<td style="font-size:12px">' + dates + '</td>'
-      + '<td><span style="background:var(--blue-mid);color:var(--blue-dark);padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">' + (l.ttype||'—') + '</span></td>'
+      + '<td>' + (l.date||'—') + '</td>'
+      + '<td><span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">' + (l.ttype||'—') + '</span></td>'
       + '<td>' + (l.country||'Unknown') + '</td>'
-      + '<td style="font-size:12px">' + deviceIcon + ' ' + (l.device||'Desktop') + '</td>'
-      + '<td style="font-size:12px;color:var(--txt3)">' + ref + '</td>'
-      + '<td style="font-size:12px;color:var(--txt3)">' + new Date(l.created_at).toLocaleString() + '</td>'
-      + '<td><button onclick="deleteRow(this,\'flight_leads\',\'id\',' + l.id + ')" style="background:#ef4444;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">🗑</button></td>'
+      + '<td style="font-size:12px;color:#64748b">' + new Date(l.created_at).toLocaleString() + '</td>'
       + '</tr>';
   }).join('');
 
@@ -560,10 +565,10 @@ tr:hover td{background:#0f172a}
       <div class="table-wrap" style="margin-bottom:32px">
         <table>
           <thead>
-            <tr><th>Name</th><th>Email</th><th>Route</th><th>Date(s)</th><th>Type</th><th>Country</th><th>Device</th><th>Source</th><th>Time</th><th></th></tr>
+            <tr><th>Name</th><th>Email</th><th>Route</th><th>Date</th><th>Type</th><th>Country</th><th>Time</th></tr>
           </thead>
           <tbody>
-            ${flightLeadRows || '<tr><td colspan="10" class="empty">No flight leads yet</td></tr>'}
+            ${flightLeadRows || '<tr><td colspan="7" class="empty">No flight leads yet</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -908,22 +913,23 @@ const server = http.createServer(function(req, res) {
       try {
         var d = JSON.parse(body);
         var ip = getIP(req);
-        var country = req.headers['cf-ipcountry'] || 'Unknown';
-        pool.query(
-          'INSERT INTO hotel_leads (name, email, city, checkin, checkout, guests, hotel_name, ip, country) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-          [
-            (d.name||'').substring(0,200),
-            (d.email||'').substring(0,200),
-            (d.city||'').substring(0,100),
-            (d.checkin||'').substring(0,20),
-            (d.checkout||'').substring(0,20),
-            parseInt(d.guests)||1,
-            (d.hotelName||'').substring(0,200),
-            ip, country
-          ]
-        ).catch(function(){});
-        sendTelegram('🏨 <b>New Hotel Lead</b>\n👤 ' + (d.name||'Unknown') + '\n📧 ' + (d.email||'') + '\n🌆 ' + (d.city||'') + '\n📅 ' + (d.checkin||'') + ' → ' + (d.checkout||'') + '\n🏨 ' + (d.hotelName||'') + '\n🌍 ' + country);
         res.end(JSON.stringify({ success: true }));
+        getCountry(req, ip, function(country) {
+          pool.query(
+            'INSERT INTO hotel_leads (name, email, city, checkin, checkout, guests, hotel_name, ip, country) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+            [
+              (d.name||'').substring(0,200),
+              (d.email||'').substring(0,200),
+              (d.city||'').substring(0,100),
+              (d.checkin||'').substring(0,20),
+              (d.checkout||'').substring(0,20),
+              parseInt(d.guests)||1,
+              (d.hotelName||'').substring(0,200),
+              ip, country
+            ]
+          ).catch(function(){});
+          sendTelegram('🏨 <b>New Hotel Lead</b>\n👤 ' + (d.name||'Unknown') + '\n📧 ' + (d.email||'') + '\n🌆 ' + (d.city||'') + '\n📅 ' + (d.checkin||'') + ' → ' + (d.checkout||'') + '\n🏨 ' + (d.hotelName||'') + '\n🌍 ' + country);
+        });
       } catch(e) { res.end(JSON.stringify({ success: false })); }
     });
     return;
@@ -938,23 +944,21 @@ const server = http.createServer(function(req, res) {
       try {
         var d = JSON.parse(body);
         var ip = getIP(req);
-        var country = req.headers['cf-ipcountry'] || 'Unknown';
-        pool.query(
-          'INSERT INTO flight_leads (name, email, route, date, return_date, ttype, ip, country, device, referrer) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
-          [
-            (d.name||'').substring(0,200),
-            (d.email||'').substring(0,200),
-            (d.route||'').substring(0,200),
-            (d.date||'').substring(0,20),
-            (d.return_date||'').substring(0,20),
-            (d.ttype||'').substring(0,50),
-            ip, country,
-            (d.device||'').substring(0,20),
-            (d.referrer||'').substring(0,500)
-          ]
-        ).catch(function(){});
-        sendTelegram('✈️ <b>New Flight Lead</b>\n👤 ' + (d.name||'Unknown') + '\n📧 ' + (d.email||'') + '\n🛫 ' + (d.route||'') + '\n📅 ' + (d.date||'') + '\n🌍 ' + country);
         res.end(JSON.stringify({ success: true }));
+        getCountry(req, ip, function(country) {
+          pool.query(
+            'INSERT INTO flight_leads (name, email, route, date, ttype, ip, country) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+            [
+              (d.name||'').substring(0,200),
+              (d.email||'').substring(0,200),
+              (d.route||'').substring(0,200),
+              (d.date||'').substring(0,20),
+              (d.ttype||'').substring(0,50),
+              ip, country
+            ]
+          ).catch(function(){});
+          sendTelegram('✈️ <b>New Flight Lead</b>\n👤 ' + (d.name||'Unknown') + '\n📧 ' + (d.email||'') + '\n🛫 ' + (d.route||'') + '\n📅 ' + (d.date||'') + '\n🌍 ' + country);
+        });
       } catch(e) { res.end(JSON.stringify({ success: false })); }
     });
     return;
