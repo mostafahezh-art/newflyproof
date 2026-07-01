@@ -1163,6 +1163,57 @@ const server = http.createServer(function(req, res) {
     return;
   }
 
+  // ── Companion App Activity Feed ───────────────────────────────────
+  if (url.pathname === '/api/activity' && req.method === 'GET') {
+    if (req.headers['x-admin-password'] !== ADMIN_PASSWORD) {
+      res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return;
+    }
+    var since = url.searchParams.get('since') || new Date(0).toISOString();
+    Promise.all([
+      pool.query(`SELECT * FROM orders WHERE booking_ref NOT LIKE 'FS-TEST-%' ORDER BY created_at DESC LIMIT 200`),
+      pool.query(`SELECT SUM(amount) as total_revenue, COUNT(*) as total_orders,
+        SUM(CASE WHEN created_at::date = CURRENT_DATE THEN amount ELSE 0 END) as today_revenue,
+        COUNT(CASE WHEN created_at::date = CURRENT_DATE THEN 1 END) as today_orders,
+        SUM(CASE WHEN created_at >= date_trunc('month', NOW()) THEN amount ELSE 0 END) as month_revenue,
+        COUNT(CASE WHEN created_at >= date_trunc('month', NOW()) THEN 1 END) as month_orders
+        FROM orders WHERE booking_ref NOT LIKE 'FS-TEST-%'`),
+      pool.query(`SELECT COUNT(DISTINCT session_id) as online_now FROM visitors WHERE last_seen > NOW() - INTERVAL '2 minutes'`),
+      pool.query(`SELECT COUNT(DISTINCT session_id) as visitors_today FROM visitors WHERE created_at::date = CURRENT_DATE`),
+      pool.query(`SELECT * FROM flight_leads ORDER BY created_at DESC LIMIT 200`),
+      pool.query(`SELECT * FROM hotel_leads ORDER BY created_at DESC LIMIT 200`),
+      pool.query(`SELECT * FROM errors ORDER BY created_at DESC LIMIT 100`),
+      pool.query(`SELECT * FROM orders WHERE created_at > $1 AND booking_ref NOT LIKE 'FS-TEST-%' ORDER BY created_at DESC`, [since]),
+      pool.query(`SELECT * FROM flight_leads WHERE created_at > $1 ORDER BY created_at DESC`, [since]),
+      pool.query(`SELECT * FROM hotel_leads WHERE created_at > $1 ORDER BY created_at DESC`, [since]),
+      pool.query(`SELECT * FROM errors WHERE created_at > $1 ORDER BY created_at DESC`, [since])
+    ]).then(function(r) {
+      var statsRow = r[1].rows[0];
+      res.end(JSON.stringify({
+        stats: {
+          total_revenue: parseInt(statsRow.total_revenue) || 0,
+          total_orders: parseInt(statsRow.total_orders) || 0,
+          today_revenue: parseInt(statsRow.today_revenue) || 0,
+          today_orders: parseInt(statsRow.today_orders) || 0,
+          month_revenue: parseInt(statsRow.month_revenue) || 0,
+          month_orders: parseInt(statsRow.month_orders) || 0,
+          online_now: parseInt(r[2].rows[0].online_now) || 0,
+          visitors_today: parseInt(r[3].rows[0].visitors_today) || 0
+        },
+        orders: r[0].rows,
+        flight_leads: r[4].rows,
+        hotel_leads: r[5].rows,
+        errors: r[6].rows,
+        new_orders: r[7].rows,
+        new_flight_leads: r[8].rows,
+        new_hotel_leads: r[9].rows,
+        new_errors: r[10].rows
+      }));
+    }).catch(function(e) {
+      res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+    });
+    return;
+  }
+
   // ── Admin Dashboard ───────────────────────────────────────────────
   if (url.pathname === '/admin') {
     var pw = url.searchParams.get('pw') || '';
